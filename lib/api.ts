@@ -308,6 +308,32 @@ class APIClient {
     const response = await this.client.patch(`/api/admin/users/${userId}`, updates);
     return response.data;
   }
+
+  // Verification endpoints
+  async getVerificationJobs(params?: { limit?: number; status?: string }): Promise<any[]> {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.append("limit", params.limit.toString());
+    if (params?.status) queryParams.append("status", params.status);
+    
+    const queryString = queryParams.toString();
+    const url = `/api/verification/jobs${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  async createBulkVerifyFromLeads(leadIds: number[]): Promise<any> {
+    const response = await this.client.post("/api/verification/jobs/from-leads", {
+      lead_ids: leadIds,
+    });
+    return response.data;
+  }
+
+  async createBulkVerifyFromCSV(emails: string[]): Promise<any> {
+    const response = await this.client.post("/api/verification/jobs/from-csv", {
+      emails,
+    });
+    return response.data;
+  }
 }
 
 export const apiClient = new APIClient();
