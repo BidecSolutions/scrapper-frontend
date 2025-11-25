@@ -334,6 +334,17 @@ class APIClient {
     });
     return response.data;
   }
+
+  // Dashboard endpoints
+  async getDashboardStats(): Promise<any> {
+    const response = await this.client.get("/api/dashboard/stats");
+    return response.data;
+  }
+
+  async getHealthScoreStats(): Promise<any> {
+    const response = await this.client.get("/api/health/stats");
+    return response.data;
+  }
 }
 
 export const apiClient = new APIClient();
