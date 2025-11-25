@@ -5,23 +5,26 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Check } from "lucide-react";
 
 interface CopyButtonProps {
-  text: string;
+  text?: string;
+  textToCopy?: string;
   label?: string;
   className?: string;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "icon";
 }
 
 export function CopyButton({
   text,
+  textToCopy,
   label,
   className = "",
   size = "sm",
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
+  const valueToCopy = textToCopy || text || "";
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(valueToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -32,6 +35,7 @@ export function CopyButton({
   const sizeClasses = {
     sm: "w-4 h-4",
     md: "w-5 h-5",
+    icon: "w-4 h-4",
   };
 
   return (

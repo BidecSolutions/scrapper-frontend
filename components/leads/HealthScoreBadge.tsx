@@ -108,13 +108,14 @@ export function HealthScoreBadge({
               </div>
 
               <div className="space-y-2 mb-3">
-                {Object.entries(healthScore.breakdown).map(([key, data]) => {
-                  const statusIcon = {
+                {Object.entries(healthScore.breakdown || {}).map(([key, data]: [string, any]) => {
+                  const statusIcons: Record<string, JSX.Element> = {
                     good: <CheckCircle2 className="w-3 h-3 text-emerald-500" />,
                     warning: <AlertCircle className="w-3 h-3 text-amber-500" />,
                     missing: <XCircle className="w-3 h-3 text-slate-400" />,
                     na: <Info className="w-3 h-3 text-slate-400" />,
-                  }[data.status] || <Info className="w-3 h-3 text-slate-400" />;
+                  };
+                  const statusIcon = statusIcons[data?.status] || <Info className="w-3 h-3 text-slate-400" />;
 
                   return (
                     <div key={key} className="flex items-start justify-between gap-2 text-xs">
@@ -146,7 +147,7 @@ export function HealthScoreBadge({
                 })}
               </div>
 
-              {healthScore.recommendations.length > 0 && (
+              {healthScore.recommendations && healthScore.recommendations.length > 0 && (
                 <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                     Recommendations:

@@ -62,7 +62,7 @@ export default function DuplicatesPage() {
   const handleDetect = async () => {
     try {
       setDetecting(true);
-      const result = await apiClient.detectDuplicates(0.7);
+      const result = await apiClient.detectDuplicates();
       showToast({
         type: "success",
         title: "Detection complete",
@@ -277,7 +277,7 @@ function DuplicateGroupCard({
               {(group.confidence_score * 100).toFixed(0)}% confidence
             </span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-              {matchReasonLabels[group.match_reason] || group.match_reason}
+              {group.match_reason ? (matchReasonLabels[group.match_reason] || group.match_reason) : "Unknown"}
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -345,7 +345,7 @@ function DuplicateGroupCard({
               </div>
               {lead.matched_fields && lead.matched_fields.length > 0 && (
                 <div className="mt-1.5 flex flex-wrap gap-1">
-                  {lead.matched_fields.map((field) => (
+                  {lead.matched_fields.map((field: string) => (
                     <span
                       key={field}
                       className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400"

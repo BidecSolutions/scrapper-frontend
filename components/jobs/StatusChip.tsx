@@ -4,12 +4,12 @@ import { motion } from "framer-motion";
 import { type JobStatus } from "@/lib/api";
 
 interface StatusChipProps {
-  status: JobStatus;
+  status: JobStatus | string;
   className?: string;
 }
 
 export function StatusChip({ status, className = "" }: StatusChipProps) {
-  const config = {
+  const config: Record<JobStatus, any> = {
     pending: {
       label: "Queued",
       color: "border-slate-500/40 bg-slate-800/80 text-slate-200",
@@ -42,6 +42,12 @@ export function StatusChip({ status, className = "" }: StatusChipProps) {
       dotColor: "bg-rose-400",
       glow: false,
     },
+    cancelled: {
+      label: "Cancelled",
+      color: "border-slate-500/40 bg-slate-500/15 text-slate-300",
+      dotColor: "bg-slate-400",
+      glow: false,
+    },
     completed_with_warnings: {
       label: "Completed",
       color: "border-amber-500/40 bg-amber-500/15 text-amber-300",
@@ -50,7 +56,7 @@ export function StatusChip({ status, className = "" }: StatusChipProps) {
     },
   };
 
-  const { label, color, dotColor, glow, glowColor } = config[status];
+  const { label, color, dotColor, glow, glowColor } = config[status as JobStatus] || config.pending;
 
   return (
     <motion.span

@@ -50,7 +50,7 @@ export function LeadDetailPanel({
       setLoadingEmails(true);
       // For now, convert legacy emails array to LeadEmail format
       // TODO: Fetch from /api/leads/{id}/emails endpoint when available
-      const emails: LeadEmail[] = (lead.emails || []).map((email, idx) => ({
+      const emails: LeadEmail[] = (lead.emails || []).map((email: any, idx: number) => ({
         id: idx,
         email: typeof email === 'string' ? email : email.email || '',
         label: idx === 0 ? 'primary' : 'secondary',
@@ -250,16 +250,16 @@ export function LeadDetailPanel({
                   <div className="space-y-1">
                     {Object.entries(lead.social_links)
                       .filter(([_, url]) => url)
-                      .map(([platform, url]) => (
+                      .map(([platform, url]: [string, any]) => (
                         <div key={platform} className="flex justify-between text-xs py-0.5">
                           <span className="text-slate-500 capitalize">{platform}</span>
                           <a
-                            href={url}
+                            href={String(url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-cyan-400 hover:text-cyan-300 truncate max-w-[200px]"
                           >
-                            {url}
+                            {String(url)}
                           </a>
                         </div>
                       ))}
@@ -342,7 +342,7 @@ export function LeadDetailPanel({
 
               <Section title="Metadata">
                 <div className="space-y-1 text-xs">
-                  <Field label="Source" value={lead.source} />
+                  <Field label="Source" value={lead.source || undefined} />
                   <Field label="Niche" value={lead.niche || undefined} />
                   {lead.cms && <Field label="CMS" value={lead.cms} />}
                 </div>

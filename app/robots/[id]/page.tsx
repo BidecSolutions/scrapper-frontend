@@ -93,6 +93,15 @@ export default function RobotDetailPage() {
       return;
     }
 
+    if (!robotId) {
+      showToast({
+        type: "error",
+        title: "Invalid robot",
+        message: "Robot ID is missing",
+      });
+      return;
+    }
+
     setTesting(true);
     setTestResult(null);
     try {

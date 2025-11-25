@@ -34,6 +34,7 @@ export interface Lead {
   quality_score: number | null;
   tags: string[];
   tech_stack: string[];
+  matched_fields?: string[];
   created_at: string;
   updated_at: string;
   [key: string]: any;
@@ -43,14 +44,21 @@ export interface SavedView {
   id: number;
   name: string;
   filters: Record<string, any>;
+  sort_by?: string;
+  sort_order?: string;
+  is_pinned?: boolean;
+  is_shared?: boolean;
   created_at: string;
+  [key: string]: any;
 }
+
+export type JobStatus = "pending" | "running" | "completed" | "failed" | "cancelled" | "ai_pending" | "completed_with_warnings";
 
 export interface Job {
   id: number;
   niche: string;
   location: string | null;
-  status: string;
+  status: JobStatus | string;
   total_leads: number;
   created_at: string;
   completed_at: string | null;
@@ -85,6 +93,8 @@ export interface DuplicateGroup {
   id: number;
   leads: Lead[];
   similarity_score: number;
+  confidence_score: number;
+  match_reason?: string;
   status: string;
   created_at: string;
 }
@@ -94,6 +104,22 @@ export interface SocialInsights {
   twitter?: string;
   facebook?: string;
   instagram?: string;
+  posts_per_month?: number;
+  avg_engagement?: number;
+  topic_distribution?: Record<string, number>;
+  dominant_topics?: string[];
+  sentiment_distribution?: Record<string, number>;
+  growth_stage?: string;
+  dominant_pain?: string;
+  summary?: string;
+  [key: string]: any;
+}
+
+export interface HealthScore {
+  score: number;
+  grade: string;
+  breakdown?: Record<string, { status: string; [key: string]: any }>;
+  recommendations?: any[];
   [key: string]: any;
 }
 
@@ -161,11 +187,11 @@ class APIClient {
     return response.data;
   }
 
-  async updateOrganization(name: string, brandName?: string, tagline?: string): Promise<Organization> {
+  async updateOrganization(name: string, brandName?: string | null, tagline?: string | null): Promise<Organization> {
     const response = await this.client.patch("/api/organization", {
       name,
-      brand_name: brandName,
-      tagline,
+      brand_name: brandName || undefined,
+      tagline: tagline || undefined,
     });
     return response.data;
   }
@@ -190,6 +216,92 @@ class APIClient {
     return response.data;
   }
 
+  async getDossier(leadId: number): Promise<any> {
+    const response = await this.client.get(`/api/leads/${leadId}/dossier`);
+    return response.data;
+  }
+
+  async generateDossier(leadId: number): Promise<any> {
+    const response = await this.client.post(`/api/leads/${leadId}/dossier/generate`);
+    return response.data;
+  }
+
+  async getSimilarLeads(leadId: number, scope: string, limit?: number): Promise<any> {
+    const params = new URLSearchParams();
+    params.append("scope", scope);
+    if (limit) params.append("limit", limit.toString());
+    const response = await this.client.get(`/api/leads/${leadId}/similar?${params.toString()}`);
+    return response.data;
+  }
+
+  async getNextAction(leadId: number): Promise<any> {
+    const response = await this.client.get(`/api/leads/${leadId}/next-action`);
+    return response.data;
+  }
+
+  async getLeadTechStack(leadId: number): Promise<any> {
+    const response = await this.client.get(`/api/leads/${leadId}/tech-stack`);
+    return response.data;
+  }
+
+  async getKeyPeople(leadId: number, limit?: number): Promise<any> {
+    const params = limit ? `?limit=${limit}` : "";
+    const response = await this.client.get(`/api/leads/${leadId}/key-people${params}`);
+    return response.data;
+  }
+
+  async getLeadHealthScore(leadId: number): Promise<any> {
+    const response = await this.client.get(`/api/leads/${leadId}/health-score`);
+    return response.data;
+  }
+
+  async verifyEmailForLead(email: string, leadId: number): Promise<any> {
+    const response = await this.client.post(`/api/leads/${leadId}/emails/verify`, { email });
+    return response.data;
+  }
+
+  async findEmailForLead(leadId: number, firstName: string, lastName: string, domain?: string): Promise<any> {
+    const response = await this.client.post(`/api/leads/${leadId}/emails/find`, {
+      first_name: firstName,
+      last_name: lastName,
+      domain,
+    });
+    return response.data;
+  }
+
+  async saveEmailToLeads(data: {
+    first_name?: string;
+    last_name?: string;
+    email: string;
+    domain?: string;
+    company_name?: string;
+    confidence?: number;
+  }): Promise<any> {
+    const response = await this.client.post("/api/leads/from-email", data);
+    return response.data;
+  }
+
+  // Email finder endpoints
+  async findEmail(firstName: string, lastName: string, domain: string, skipSmtp?: boolean): Promise<any> {
+    const response = await this.client.post("/api/email-finder/find", {
+      first_name: firstName,
+      last_name: lastName,
+      domain,
+      skip_smtp: skipSmtp,
+    });
+    return response.data;
+  }
+
+  async verifyEmail(email: string): Promise<{ status: string; reason: string }> {
+    const response = await this.client.post("/api/email-finder/verify", { email });
+    return response.data;
+  }
+
+  async verifyEmailsBulk(emails: string[]): Promise<{ results: any[]; total: number }> {
+    const response = await this.client.post("/api/email-finder/verify-bulk", { emails });
+    return response.data;
+  }
+
   // Job endpoints
   async getJobs(status?: string): Promise<Job[]> {
     const params = status ? `?status=${status}` : "";
@@ -207,26 +319,69 @@ class APIClient {
     location?: string;
     max_results?: number;
     max_pages_per_site?: number;
+    sources?: string[];
+    extract?: {
+      emails?: boolean;
+      phones?: boolean;
+      website_content?: boolean;
+      services?: boolean;
+      social_links?: boolean;
+      social_numbers?: boolean;
+    };
   }): Promise<Job> {
     const response = await this.client.post("/api/jobs/run-once", data);
     return response.data;
   }
 
   // Saved views
-  async getSavedViews(): Promise<SavedView[]> {
-    const response = await this.client.get("/api/saved-views");
+  async getSavedViews(pageType?: string): Promise<SavedView[]> {
+    const params = pageType ? `?page_type=${pageType}` : "";
+    const response = await this.client.get(`/api/saved-views${params}`);
     return response.data;
   }
 
-  async createSavedView(name: string, filters: Record<string, any>): Promise<SavedView> {
-    const response = await this.client.post("/api/saved-views", { name, filters });
+  async createSavedView(data: {
+    name: string;
+    filters?: Record<string, any>;
+    page_type?: string;
+    sort_by?: string;
+    sort_order?: string;
+    is_pinned?: boolean;
+    is_shared?: boolean;
+  }): Promise<SavedView> {
+    const response = await this.client.post("/api/saved-views", data);
+    return response.data;
+  }
+
+  async updateSavedView(viewId: number, updates: {
+    name?: string;
+    filters?: Record<string, any>;
+    sort_by?: string;
+    sort_order?: string;
+    is_pinned?: boolean;
+    is_shared?: boolean;
+  }): Promise<SavedView> {
+    const response = await this.client.patch(`/api/saved-views/${viewId}`, updates);
+    return response.data;
+  }
+
+  async deleteSavedView(viewId: number): Promise<any> {
+    const response = await this.client.delete(`/api/saved-views/${viewId}`);
+    return response.data;
+  }
+
+  async useSavedView(viewId: number): Promise<any> {
+    const response = await this.client.post(`/api/saved-views/${viewId}/use`);
     return response.data;
   }
 
   // Lookalike endpoints
   async createLookalikeJob(data: {
-    lead_ids: number[];
+    lead_ids?: number[];
+    source_segment_id?: number;
     similarity_threshold?: number;
+    min_score?: number;
+    max_results?: number;
   }): Promise<Job> {
     const response = await this.client.post("/api/lookalike/jobs", data);
     return response.data;
@@ -255,6 +410,18 @@ class APIClient {
     return response.data;
   }
 
+  async mergeDuplicates(groupId: number, canonicalLeadId: number): Promise<{ message: string }> {
+    const response = await this.client.post(`/api/duplicates/groups/${groupId}/merge`, {
+      canonical_lead_id: canonicalLeadId,
+    });
+    return response.data;
+  }
+
+  async ignoreDuplicateGroup(groupId: number): Promise<any> {
+    const response = await this.client.post(`/api/duplicates/groups/${groupId}/ignore`);
+    return response.data;
+  }
+
   // Usage endpoints
   async getUsage(): Promise<any> {
     const response = await this.client.get("/api/usage/me/usage");
@@ -262,7 +429,7 @@ class APIClient {
   }
 
   // Export endpoints
-  async exportLeads(format: "csv" | "json" = "csv", filters?: Record<string, any>): Promise<Blob> {
+  async exportLeads(format: "csv" | "json" | "excel" = "csv", filters?: Record<string, any>): Promise<Blob> {
     const params = new URLSearchParams();
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
@@ -294,6 +461,18 @@ class APIClient {
     const queryString = queryParams.toString();
     const url = `/api/admin/users${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
+    return response.data;
+  }
+
+  async createUser(data: {
+    email: string;
+    password: string;
+    full_name?: string;
+    is_super_admin?: boolean;
+    can_use_advanced?: boolean;
+    status?: "pending" | "active" | "suspended";
+  }): Promise<any> {
+    const response = await this.client.post("/api/admin/users", data);
     return response.data;
   }
 
@@ -346,6 +525,53 @@ class APIClient {
     return response.data;
   }
 
+  async getDeliverabilityStats(): Promise<any> {
+    const response = await this.client.get("/api/dashboard/deliverability");
+    return response.data;
+  }
+
+  async getLinkedInActivity(): Promise<any> {
+    const response = await this.client.get("/api/dashboard/linkedin-activity");
+    return response.data;
+  }
+
+  async getPipelineStats(): Promise<any> {
+    const response = await this.client.get("/api/dashboard/pipeline");
+    return response.data;
+  }
+
+  async getPipelineSummary(): Promise<any> {
+    const response = await this.client.get("/api/dashboard/pipeline/summary");
+    return response.data;
+  }
+
+  // Notifications endpoints
+  async getNotifications(unreadOnly?: boolean, limit?: number): Promise<{ items: any[]; unread_count: number }> {
+    const queryParams = new URLSearchParams();
+    if (unreadOnly) queryParams.append("unread_only", "true");
+    if (limit) queryParams.append("limit", limit.toString());
+    
+    const queryString = queryParams.toString();
+    const url = `/api/notifications${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  async markNotificationAsRead(notificationId: number): Promise<any> {
+    const response = await this.client.patch(`/api/notifications/${notificationId}/read`);
+    return response.data;
+  }
+
+  async updateNotification(notificationId: number, updates: { is_read?: boolean }): Promise<any> {
+    const response = await this.client.patch(`/api/notifications/${notificationId}`, updates);
+    return response.data;
+  }
+
+  async markAllNotificationsRead(): Promise<any> {
+    const response = await this.client.post("/api/notifications/mark-all-read");
+    return response.data;
+  }
+
   // Activity endpoints
   async getWorkspaceActivity(params?: {
     page?: number;
@@ -367,12 +593,14 @@ class APIClient {
     page?: number;
     page_size?: number;
     workspace_id?: number;
+    actor_user_id?: number;
     type?: string;
   }): Promise<{ items: any[]; total: number }> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.page_size) queryParams.append("page_size", params.page_size.toString());
     if (params?.workspace_id) queryParams.append("workspace_id", params.workspace_id.toString());
+    if (params?.actor_user_id) queryParams.append("actor_user_id", params.actor_user_id.toString());
     if (params?.type) queryParams.append("type", params.type);
     
     const queryString = queryParams.toString();
@@ -389,6 +617,25 @@ class APIClient {
 
   async getUsageStats(): Promise<any> {
     const response = await this.client.get("/api/usage/stats");
+    return response.data;
+  }
+
+  async createApiKey(name?: string): Promise<any> {
+    const response = await this.client.post("/api/settings/api-keys", { name });
+    return response.data;
+  }
+
+  async revokeApiKey(keyId: number): Promise<any> {
+    const response = await this.client.delete(`/api/settings/api-keys/${keyId}`);
+    return response.data;
+  }
+
+  async uploadLogo(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await this.client.post("/api/organization/logo", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return response.data;
   }
 
@@ -414,6 +661,21 @@ class APIClient {
     return response.data;
   }
 
+  async createTemplate(data: any): Promise<any> {
+    const response = await this.client.post("/api/templates", data);
+    return response.data;
+  }
+
+  async approveTemplate(templateId: number): Promise<any> {
+    const response = await this.client.post(`/api/templates/${templateId}/approve`);
+    return response.data;
+  }
+
+  async rejectTemplate(templateId: number, reason?: string): Promise<any> {
+    const response = await this.client.post(`/api/templates/${templateId}/reject`, { reason });
+    return response.data;
+  }
+
   // Robots endpoints
   async getRobots(): Promise<any[]> {
     const response = await this.client.get("/api/robots");
@@ -425,8 +687,31 @@ class APIClient {
     return response.data;
   }
 
-  async getRobotRuns(robotId: number): Promise<any[]> {
+  async getRobotRuns(robotId: number): Promise<{ runs?: any[] }> {
     const response = await this.client.get(`/api/robots/${robotId}/runs`);
+    const data = response.data;
+    // Handle both array and object responses
+    if (Array.isArray(data)) {
+      return { runs: data };
+    }
+    return data;
+  }
+
+  async createRobotFromPrompt(prompt: string, sampleUrl?: string): Promise<any> {
+    const response = await this.client.post("/api/robots/from-prompt", { 
+      prompt,
+      sample_url: sampleUrl,
+    });
+    return response.data;
+  }
+
+  async saveRobot(data: any): Promise<any> {
+    const response = await this.client.post("/api/robots", data);
+    return response.data;
+  }
+
+  async testRobot(robotId: number, url: string, searchQuery?: string): Promise<any> {
+    const response = await this.client.post(`/api/robots/${robotId}/test`, { url, search_query: searchQuery });
     return response.data;
   }
 
@@ -442,6 +727,11 @@ class APIClient {
     return response.data;
   }
 
+  async runLinkedInCampaignPlaybook(data: any): Promise<any> {
+    const response = await this.client.post("/api/playbooks/run-linkedin-campaign", data);
+    return response.data;
+  }
+
   // Lookalike endpoints
   async getLookalikeJob(jobId: number, limit?: number, offset?: number): Promise<any> {
     const queryParams = new URLSearchParams();
@@ -451,6 +741,11 @@ class APIClient {
     const queryString = queryParams.toString();
     const url = `/api/lookalike/jobs/${jobId}${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
+    return response.data;
+  }
+
+  async listLookalikeJobs(): Promise<any[]> {
+    const response = await this.client.get("/api/lookalike/jobs");
     return response.data;
   }
 
@@ -487,6 +782,17 @@ class APIClient {
 
   async getDeal(dealId: number): Promise<any> {
     const response = await this.client.get(`/api/deals/${dealId}`);
+    return response.data;
+  }
+
+  async updateDeal(dealId: number, updates: {
+    stage?: string;
+    value?: number;
+    currency?: string;
+    name?: string;
+    [key: string]: any;
+  }): Promise<any> {
+    const response = await this.client.patch(`/api/deals/${dealId}`, updates);
     return response.data;
   }
 }

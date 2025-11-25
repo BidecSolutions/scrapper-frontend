@@ -106,7 +106,7 @@ export function LeadRow({
             {/* Source badges (for scraping sources) */}
             {(lead.sources && lead.sources.length > 0 && lead.source !== "linkedin_extension") && (
               <div className="flex gap-1">
-                {lead.sources.map((source) => (
+                 {lead.sources.map((source: string) => (
                   <Badge
                     key={source}
                     variant="outline"

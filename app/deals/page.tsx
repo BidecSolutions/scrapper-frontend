@@ -67,14 +67,14 @@ export default function DealsPipelinePage() {
     return acc;
   }, {} as Record<DealStage, Deal[]>);
 
-  async function handleStageChange(dealId: number, newStage: DealStage) {
-    try {
-      const updated = await apiClient.updateDeal(dealId, { stage: newStage });
-      setDeals((prev) => prev.map((d) => (d.id === dealId ? updated : d)));
-    } catch (err) {
-      console.error("Error updating deal stage:", err);
-    }
-  }
+  // async function handleStageChange(dealId: number, newStage: DealStage) {
+  //   try {
+      // const updated = await apiClient?.updateDeal(dealId, { stage: newStage });
+  //     setDeals((prev) => prev.map((d) => (d.id === dealId ? updated : d)));
+  //   } catch (err) {
+  //     console.error("Error updating deal stage:", err);
+  //   }
+  // }
 
   function formatCurrency(value: number | null | undefined, currency: string = "USD"): string {
     if (!value) return "—";

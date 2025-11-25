@@ -3,19 +3,8 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { MessageSquare, TrendingUp, Heart, Sparkles, Loader2 } from "lucide-react";
-import { apiClient } from "@/lib/api";
+import { apiClient, type SocialInsights } from "@/lib/api";
 import { Section } from "./LeadDetailPanel";
-
-type SocialInsights = {
-  posts_per_month?: number;
-  avg_engagement?: number;
-  topic_distribution?: Record<string, number>;
-  dominant_topics?: string[];
-  sentiment_distribution?: Record<string, number>;
-  growth_stage?: string;
-  dominant_pain?: string;
-  summary?: string;
-};
 
 export function LeadSocialInsights({ leadId }: { leadId: number }) {
   const [insights, setInsights] = useState<SocialInsights | null>(null);
@@ -94,7 +83,7 @@ export function LeadSocialInsights({ leadId }: { leadId: number }) {
 
           {insights.dominant_topics && insights.dominant_topics.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {insights.dominant_topics.map((topic, idx) => (
+               {insights.dominant_topics.map((topic: string, idx: number) => (
                 <motion.span
                   key={topic}
                   initial={{ opacity: 0, scale: 0.8 }}

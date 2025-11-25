@@ -155,8 +155,8 @@ export function SavedViewsBar({
   const handleEditView = (view: SavedView) => {
     setEditingView(view);
     setViewName(view.name);
-    setIsPinned(view.is_pinned);
-    setIsShared(view.is_shared);
+    setIsPinned(view.is_pinned || false);
+    setIsShared(view.is_shared || false);
     setShowSaveModal(true);
   };
 

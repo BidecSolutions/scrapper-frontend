@@ -15,7 +15,7 @@ export function LeadTechCard({ tech_stack, digital_maturity }: LeadTechCardProps
   }
 
   const tools = tech_stack.tools || [];
-  const maturity = digital_maturity !== null ? Math.round(digital_maturity) : null;
+  const maturity = digital_maturity !== null && digital_maturity !== undefined ? Math.round(digital_maturity) : null;
 
   const getMaturityColor = (score: number) => {
     if (score >= 80) return "text-emerald-400";
