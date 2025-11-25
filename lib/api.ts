@@ -345,6 +345,150 @@ class APIClient {
     const response = await this.client.get("/api/health/stats");
     return response.data;
   }
+
+  // Activity endpoints
+  async getWorkspaceActivity(params?: {
+    page?: number;
+    page_size?: number;
+    type?: string;
+  }): Promise<{ items: any[]; total: number }> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", params.page.toString());
+    if (params?.page_size) queryParams.append("page_size", params.page_size.toString());
+    if (params?.type) queryParams.append("type", params.type);
+    
+    const queryString = queryParams.toString();
+    const url = `/api/activity/workspace${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  async getAdminActivity(params?: {
+    page?: number;
+    page_size?: number;
+    workspace_id?: number;
+    type?: string;
+  }): Promise<{ items: any[]; total: number }> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", params.page.toString());
+    if (params?.page_size) queryParams.append("page_size", params.page_size.toString());
+    if (params?.workspace_id) queryParams.append("workspace_id", params.workspace_id.toString());
+    if (params?.type) queryParams.append("type", params.type);
+    
+    const queryString = queryParams.toString();
+    const url = `/api/admin/activity${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  // Settings endpoints
+  async getApiKeys(): Promise<any> {
+    const response = await this.client.get("/api/settings/api-keys");
+    return response.data;
+  }
+
+  async getUsageStats(): Promise<any> {
+    const response = await this.client.get("/api/usage/stats");
+    return response.data;
+  }
+
+  async deleteLogo(): Promise<any> {
+    const response = await this.client.delete("/api/organization/logo");
+    return response.data;
+  }
+
+  // Templates endpoints
+  async getTemplates(params?: {
+    page?: number;
+    page_size?: number;
+    q?: string;
+  }): Promise<{ items: any[]; total: number; page: number; page_size: number }> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", params.page.toString());
+    if (params?.page_size) queryParams.append("page_size", params.page_size.toString());
+    if (params?.q) queryParams.append("q", params.q);
+    
+    const queryString = queryParams.toString();
+    const url = `/api/templates${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  // Robots endpoints
+  async getRobots(): Promise<any[]> {
+    const response = await this.client.get("/api/robots");
+    return response.data;
+  }
+
+  async getRobot(robotId: number): Promise<any> {
+    const response = await this.client.get(`/api/robots/${robotId}`);
+    return response.data;
+  }
+
+  async getRobotRuns(robotId: number): Promise<any[]> {
+    const response = await this.client.get(`/api/robots/${robotId}/runs`);
+    return response.data;
+  }
+
+  // Playbook endpoints
+  async getPlaybookJobs(limit?: number): Promise<any[]> {
+    const params = limit ? `?limit=${limit}` : "";
+    const response = await this.client.get(`/api/playbooks/jobs${params}`);
+    return response.data;
+  }
+
+  async getPlaybookJob(jobId: number): Promise<any> {
+    const response = await this.client.get(`/api/playbooks/jobs/${jobId}`);
+    return response.data;
+  }
+
+  // Lookalike endpoints
+  async getLookalikeJob(jobId: number, limit?: number, offset?: number): Promise<any> {
+    const queryParams = new URLSearchParams();
+    if (limit) queryParams.append("limit", limit.toString());
+    if (offset) queryParams.append("offset", offset.toString());
+    
+    const queryString = queryParams.toString();
+    const url = `/api/lookalike/jobs/${jobId}${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  // Health endpoints
+  async getHealth(days?: number): Promise<any> {
+    const params = days ? `?days=${days}` : "";
+    const response = await this.client.get(`/api/health${params}`);
+    return response.data;
+  }
+
+  async getAllWorkspacesHealth(): Promise<any> {
+    const response = await this.client.get("/api/admin/health/all-workspaces");
+    return response.data;
+  }
+
+  // Deals endpoints
+  async getDeals(params?: {
+    page?: number;
+    page_size?: number;
+    q?: string;
+    status?: string;
+  }): Promise<{ items: any[]; total: number; page: number; page_size: number }> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", params.page.toString());
+    if (params?.page_size) queryParams.append("page_size", params.page_size.toString());
+    if (params?.q) queryParams.append("q", params.q);
+    if (params?.status) queryParams.append("status", params.status);
+    
+    const queryString = queryParams.toString();
+    const url = `/api/deals${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  async getDeal(dealId: number): Promise<any> {
+    const response = await this.client.get(`/api/deals/${dealId}`);
+    return response.data;
+  }
 }
 
 export const apiClient = new APIClient();
