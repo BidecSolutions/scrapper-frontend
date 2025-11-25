@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/Toast";
 import { apiClient, type SavedView } from "@/lib/api";
 import {
@@ -17,7 +17,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { MetricCard } from "@/components/ui/metrics";
 import { SavedViewsBar } from "@/components/saved-views/SavedViewsBar";
-import type { SavedView } from "@/lib/api";
 
 interface VerificationJob {
   id: number;
