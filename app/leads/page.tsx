@@ -32,9 +32,10 @@ export default function LeadsPage() {
   const [maxScore, setMaxScore] = useState<number | null>(null);
 
   useEffect(() => {
+    // Debounce search to reduce API calls
     const timer = setTimeout(() => {
       loadLeads();
-    }, 300);
+    }, searchQuery ? 500 : 100); // Longer debounce for search, shorter for filters
 
     return () => clearTimeout(timer);
   }, [searchQuery, sourceFilter, qualityFilter, minScore, maxScore]);

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { type Lead } from "@/lib/api";
@@ -61,7 +62,7 @@ interface LeadRowProps {
   onSelect?: (selected: boolean) => void;
 }
 
-export function LeadRow({
+export const LeadRow = memo(function LeadRow({
   lead,
   onOpenDetail,
   selected = false,
@@ -184,7 +185,7 @@ export function LeadRow({
       </td>
     </motion.tr>
   );
-}
+});
 
 export function ScorePill({
   score,

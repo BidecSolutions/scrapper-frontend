@@ -4,7 +4,12 @@ import "./globals.css";
 import { Providers } from "@/components/providers/Providers";
 import { AppLayoutWrapper } from "@/components/layout/AppLayoutWrapper";
 
-const inter = Inter({ subsets: ["latin"] });
+// Optimize font loading
+const inter = Inter({ 
+  subsets: ["latin"],
+  display: "swap", // Better font loading performance
+  preload: true,
+});
 
 export const metadata: Metadata = {
   title: "LeadFlux AI - Lead Scraper SaaS",

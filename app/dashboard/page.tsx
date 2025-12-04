@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { DeliverabilityCard } from "@/components/dashboard/DeliverabilityCard";
 import { LinkedInActivityCard } from "@/components/dashboard/LinkedInActivityCard";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
@@ -11,12 +12,23 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { PerformanceInsights } from "@/components/dashboard/PerformanceInsights";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Plus, Sparkles, TrendingUp, Users, Target, Zap, Activity, BarChart3, Clock } from "lucide-react";
+import { Plus, Sparkles, TrendingUp, Users, Target, Zap, Activity, BarChart3, Clock, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/time";
 import { StatusChip } from "@/components/jobs/StatusChip";
 import { MetricCard } from "@/components/ui/metrics";
+
+// Lazy load heavy components
+const LazyPerformanceInsights = dynamic(() => import("@/components/dashboard/PerformanceInsights").then(mod => ({ default: mod.PerformanceInsights })), {
+  loading: () => <div className="h-32 flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>,
+  ssr: false,
+});
+
+const LazyActivityFeed = dynamic(() => import("@/components/dashboard/ActivityFeed").then(mod => ({ default: mod.ActivityFeed })), {
+  loading: () => <div className="h-32 flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin text-cyan-500" /></div>,
+  ssr: false,
+});
 
 interface DashboardStats {
   total_leads: number;
@@ -34,26 +46,26 @@ interface DashboardStats {
   }>;
 }
 
+// Simplified animations for better performance
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.2,
+      staggerChildren: 0.05,
+      delayChildren: 0.1,
     },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 30, scale: 0.95 },
+  hidden: { opacity: 0, y: 10 },
   visible: {
     opacity: 1,
     y: 0,
-    scale: 1,
     transition: {
-      duration: 0.5,
-      ease: [0.4, 0, 0.2, 1],
+      duration: 0.3,
+      ease: "easeOut",
     },
   },
 };
@@ -64,8 +76,13 @@ export default function DashboardPage() {
   const [healthStats, setHealthStats] = useState<any>(null);
 
   useEffect(() => {
-    loadStats();
-    loadHealthStats();
+    // Load both API calls in parallel for faster loading
+    Promise.all([
+      loadStats(),
+      loadHealthStats(),
+    ]).catch((error) => {
+      console.error("Failed to load dashboard data:", error);
+    });
   }, []);
 
   const loadHealthStats = async () => {
@@ -390,7 +407,7 @@ export default function DashboardPage() {
                   </motion.button>
                 </Link>
               </div>
-              <ActivityFeed />
+              <LazyActivityFeed />
             </motion.div>
 
             {/* Performance Insights */}
@@ -408,7 +425,7 @@ export default function DashboardPage() {
                   Live
                 </span>
               </div>
-              <PerformanceInsights />
+              <LazyPerformanceInsights />
             </motion.div>
           </motion.section>
 

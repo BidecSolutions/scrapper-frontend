@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, memo, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -62,14 +62,13 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   };
   
-  const getActiveSection = (): "dashboard" | "jobs" | "leads" | "settings" => {
+  // Memoize active section calculation
+  const activeSection = useMemo((): "dashboard" | "jobs" | "leads" | "settings" => {
     if (pathname?.startsWith("/jobs")) return "jobs";
     if (pathname?.startsWith("/leads")) return "leads";
     if (pathname?.startsWith("/settings")) return "settings";
     return "dashboard";
-  };
-
-  const activeSection = getActiveSection();
+  }, [pathname]);
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 overflow-hidden">
