@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { apiClient, type Lead } from "@/lib/api";
 import { LeadDetailPanel } from "@/components/leads/LeadDetailPanel";
 import { LeadRow as LeadRowComponent, ScorePill } from "@/components/leads/LeadRow";
-import { Download, Search, ExternalLink, Users, Filter, X } from "lucide-react";
+import { Download, Search, ExternalLink, Users, Filter, X, Loader2 } from "lucide-react";
 import { BulkActionsToolbar } from "@/components/leads/BulkActionsToolbar";
 import { ScoreHeatBadge } from "@/components/leads/ScoreHeatBadge";
 import { useToast } from "@/components/ui/Toast";
