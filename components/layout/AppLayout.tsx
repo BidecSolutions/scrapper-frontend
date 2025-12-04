@@ -24,6 +24,7 @@ import {
   GitMerge,
   Layers,
   List as ListIcon,
+  MapPin,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { NotificationsBell } from "./NotificationsBell";
@@ -170,6 +171,12 @@ export function AppLayout({ children }: AppLayoutProps) {
             label="Email Finder"
             icon={Mail}
             active={pathname?.startsWith("/email-finder")}
+          />
+          <NavItem
+            href="/google-maps"
+            label="Google Maps"
+            icon={MapPin}
+            active={pathname?.startsWith("/google-maps")}
           />
           <NavItem
             href="/verification"

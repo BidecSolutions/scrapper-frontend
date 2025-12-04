@@ -761,6 +761,38 @@ class APIClient {
     return response.data;
   }
 
+  // Google Maps endpoints
+  async searchGoogleMaps(params: {
+    query: string;
+    location?: string;
+    max_results?: number;
+    headless?: boolean;
+    extract_emails?: boolean;
+  }): Promise<{
+    success: boolean;
+    results: Array<{
+      name?: string | null;
+      address?: string | null;
+      phone?: string | null;
+      email?: string | null;
+      website?: string | null;
+      rating?: number | null;
+      reviews?: number | null;
+      category?: string | null;
+    }>;
+    total_found: number;
+    query: string;
+    location?: string | null;
+  }> {
+    const response = await this.client.post("/api/google-maps/search", params);
+    return response.data;
+  }
+
+  async checkGoogleMapsHealth(): Promise<{ status: string; message: string }> {
+    const response = await this.client.get("/api/google-maps/health");
+    return response.data;
+  }
+
   // Deals endpoints
   async getDeals(params?: {
     page?: number;
