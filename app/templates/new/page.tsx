@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Textarea";
+import { Select } from "@/components/ui/Select";
+import { FormCard } from "@/components/ui/FormCard";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
@@ -11,14 +16,12 @@ import {
   Mail,
   Tag,
   Globe,
-  Lock,
   Loader2,
-  ArrowLeft,
   AlertCircle,
   CheckCircle2,
-  Sparkles,
   Type,
   AlignLeft,
+  X,
 } from "lucide-react";
 import type { TemplateKind, TemplateScope } from "@/types/templates";
 
@@ -115,260 +118,207 @@ export default function NewTemplatePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-800">
-        <div className="mx-auto max-w-4xl px-4 py-4">
-          <button
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 mb-4 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Templates
-          </button>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-              New Template
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Create a new email template for consistent messaging across your team
-            </p>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <PageHeader
+        title="New Template"
+        description="Create a new email template for consistent messaging across your team"
+        backUrl="/templates"
+        icon={FileText}
+      />
 
-      <main className="mx-auto max-w-4xl px-4 pt-6 pb-10">
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 px-4 py-3 flex items-start gap-3"
-          >
-            <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-            <div>
-              <strong className="font-semibold">Error:</strong> {error}
-            </div>
-          </motion.div>
-        )}
+      <main className="max-w-5xl mx-auto px-6 pt-6 pb-12">
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-6 rounded-2xl bg-gradient-to-r from-rose-50 to-red-50 dark:from-rose-950/30 dark:to-red-950/30 border border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-400 px-5 py-4 flex items-start gap-3 shadow-lg"
+            >
+              <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+              <div>
+                <strong className="font-semibold">Error:</strong> {error}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <motion.form
           onSubmit={handleSubmit}
           className="space-y-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.4 }}
         >
           {/* Basic Information */}
-          <section className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 space-y-6">
-            <div className="flex items-center gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30">
-                <FileText className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Basic Information</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Template name and description</p>
-              </div>
-            </div>
-
+          <FormCard
+            title="Basic Information"
+            description="Template name and description"
+            icon={FileText}
+            delay={0.1}
+          >
             <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                  <FileText className="w-4 h-4" />
-                  Template Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  placeholder="e.g. Cold Outreach - SaaS Companies"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                  <AlignLeft className="w-4 h-4" />
-                  Description
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  placeholder="Brief description of when and how to use this template..."
-                  rows={3}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm resize-none"
-                />
-              </div>
-
+              <Input
+                label="Template Name"
+                icon={FileText}
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g. Cold Outreach - SaaS Companies"
+              />
+              <Textarea
+                label="Description"
+                icon={AlignLeft}
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Brief description of when and how to use this template..."
+                rows={3}
+              />
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                    <Type className="w-4 h-4" />
-                    Template Type
-                  </label>
-                  <select
-                    value={formData.kind}
-                    onChange={(e) =>
-                      setFormData({ ...formData, kind: e.target.value as TemplateKind })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                  >
-                    <option value="email">Email</option>
-                    <option value="subject">Subject Line</option>
-                    <option value="sequence_step">Sequence Step</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                    <Globe className="w-4 h-4" />
-                    Scope
-                  </label>
-                  <select
-                    value={formData.scope}
-                    onChange={(e) =>
-                      setFormData({ ...formData, scope: e.target.value as TemplateScope })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                  >
-                    <option value="workspace">Workspace</option>
-                    <option value="global">Global</option>
-                  </select>
-                </div>
+                <Select
+                  label="Template Type"
+                  icon={Type}
+                  value={formData.kind}
+                  onChange={(e) => setFormData({ ...formData, kind: e.target.value as TemplateKind })}
+                  options={[
+                    { value: "email", label: "Email" },
+                    { value: "subject", label: "Subject Line" },
+                    { value: "sequence_step", label: "Sequence Step" },
+                  ]}
+                />
+                <Select
+                  label="Scope"
+                  icon={Globe}
+                  value={formData.scope}
+                  onChange={(e) => setFormData({ ...formData, scope: e.target.value as TemplateScope })}
+                  options={[
+                    { value: "workspace", label: "Workspace" },
+                    { value: "global", label: "Global" },
+                  ]}
+                />
               </div>
             </div>
-          </section>
+          </FormCard>
 
           {/* Email Content */}
           {formData.kind === "email" && (
-            <section className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 space-y-6">
-              <div className="flex items-center gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-                <div className="p-2 rounded-lg bg-cyan-50 dark:bg-cyan-950/30">
-                  <Mail className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Email Content</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Subject line and email body</p>
-                </div>
-              </div>
-
+            <FormCard
+              title="Email Content"
+              description="Subject line and email body"
+              icon={Mail}
+              delay={0.2}
+            >
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                    <Type className="w-4 h-4" />
-                    Subject Line
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.subject}
-                    onChange={(e) =>
-                      setFormData({ ...formData, subject: e.target.value })
-                    }
-                    placeholder="e.g. Quick question about [Company Name]"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                    <AlignLeft className="w-4 h-4" />
-                    Email Body *
-                  </label>
-                  <textarea
-                    required
-                    value={formData.body}
-                    onChange={(e) =>
-                      setFormData({ ...formData, body: e.target.value })
-                    }
-                    placeholder="Hi {{first_name}},\n\nI noticed that {{company_name}}...\n\nBest regards,\n{{sender_name}}"
-                    rows={12}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm font-mono resize-none"
-                  />
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Use <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{"{{variable_name}}"}</code> for dynamic content
-                  </p>
-                </div>
+                <Input
+                  label="Subject Line"
+                  icon={Type}
+                  value={formData.subject}
+                  onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                  placeholder="e.g. Quick question about [Company Name]"
+                />
+                <Textarea
+                  label="Email Body"
+                  icon={AlignLeft}
+                  required
+                  value={formData.body}
+                  onChange={(e) => setFormData({ ...formData, body: e.target.value })}
+                  placeholder="Hi {{first_name}},\n\nI noticed that {{company_name}}...\n\nBest regards,\n{{sender_name}}"
+                  rows={12}
+                  className="font-mono"
+                  helperText='Use {{variable_name}} for dynamic content'
+                />
               </div>
-            </section>
+            </FormCard>
           )}
 
           {/* Tags */}
-          <section className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 space-y-6">
-            <div className="flex items-center gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/30">
-                <Tag className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Tags</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Add tags to organize and find templates easily</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                {formData.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTag(tag)}
-                      className="hover:text-indigo-900 dark:hover:text-indigo-100"
+          <FormCard
+            title="Tags"
+            description="Add tags to organize and find templates easily"
+            icon={Tag}
+            delay={0.3}
+          >
+            <div className="space-y-4">
+              {formData.tags.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {formData.tags.map((tag) => (
+                    <motion.span
+                      key={tag}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-50 to-blue-50 dark:from-cyan-950/30 dark:to-blue-950/30 text-cyan-700 dark:text-cyan-300 text-sm font-semibold border border-cyan-200 dark:border-cyan-800"
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <input
-                type="text"
+                      {tag}
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.2, rotate: 90 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => handleRemoveTag(tag)}
+                        className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-800 dark:hover:text-cyan-200"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </motion.button>
+                    </motion.span>
+                  ))}
+                </div>
+              )}
+              <Input
+                label="Add Tag"
+                icon={Tag}
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={handleAddTag}
                 placeholder="Type a tag and press Enter..."
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
+                helperText="Press Enter to add a tag"
               />
             </div>
-          </section>
+          </FormCard>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <Button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-indigo-500 hover:bg-indigo-400 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating Template...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Create Template
-                </>
-              )}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.back()}
-              disabled={loading}
-              className="px-6"
-            >
-              Cancel
-            </Button>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="flex gap-4 pt-4"
+          >
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-500 hover:from-cyan-400 hover:via-blue-400 hover:to-cyan-400 text-white shadow-xl shadow-cyan-500/25 dark:shadow-cyan-500/40 text-base font-semibold py-6 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
+              >
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                  animate={{ x: ["-100%", "100%"] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                />
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin relative z-10" />
+                    <span className="relative z-10">Creating Template...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-5 h-5 mr-2 relative z-10" />
+                    <span className="relative z-10">Create Template</span>
+                  </>
+                )}
+              </Button>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.back()}
+                disabled={loading}
+                className="px-8 py-6 text-base"
+              >
+                Cancel
+              </Button>
+            </motion.div>
+          </motion.div>
         </motion.form>
       </main>
     </div>
   );
 }
-

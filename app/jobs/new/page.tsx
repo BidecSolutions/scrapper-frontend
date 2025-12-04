@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { Input } from "@/components/ui/Input";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { FormCard } from "@/components/ui/FormCard";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
@@ -20,7 +24,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  ArrowLeft,
+  Zap,
 } from "lucide-react";
 
 export default function NewJobPage() {
@@ -55,7 +59,6 @@ export default function NewJobPage() {
     setError(null);
 
     try {
-      // Build sources array from checkboxes
       const sources: string[] = [];
       if (formData.sources.google_search) sources.push("google_search");
       if (formData.sources.google_places) sources.push("google_places");
@@ -71,7 +74,6 @@ export default function NewJobPage() {
         extract: formData.extract,
       });
 
-      // Show success toast with action
       showToast({
         type: "success",
         title: `Job "${formData.niche}${formData.location ? ` - ${formData.location}` : ""}" created`,
@@ -86,7 +88,6 @@ export default function NewJobPage() {
     } catch (error: any) {
       console.error("Failed to create job:", error);
       
-      // Show actual error message
       let errorMessage = "Failed to create job. Please try again.";
       if (error?.response?.data?.detail) {
         errorMessage = `Failed to create job: ${error.response.data.detail}`;
@@ -101,153 +102,117 @@ export default function NewJobPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-800">
-        <div className="mx-auto max-w-4xl px-4 py-4">
-          <button
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 mb-4 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Jobs
-          </button>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-              New Scrape Job
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Create a new lead scraping and enrichment job to discover and collect business information
-            </p>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <PageHeader
+        title="New Scrape Job"
+        description="Create a new lead scraping and enrichment job to discover and collect business information"
+        backUrl="/jobs"
+        icon={Zap}
+      />
 
-      <main className="mx-auto max-w-4xl px-4 pt-6 pb-10">
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 px-4 py-3 flex items-start gap-3"
-          >
-            <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-            <div>
-              <strong className="font-semibold">Error:</strong> {error}
-            </div>
-          </motion.div>
-        )}
+      <main className="max-w-5xl mx-auto px-6 pt-6 pb-12">
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-6 rounded-2xl bg-gradient-to-r from-rose-50 to-red-50 dark:from-rose-950/30 dark:to-red-950/30 border border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-400 px-5 py-4 flex items-start gap-3 shadow-lg"
+            >
+              <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+              <div>
+                <strong className="font-semibold">Error:</strong> {error}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <motion.form
           onSubmit={handleSubmit}
           className="space-y-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.4 }}
         >
           {/* Basic Information */}
-          <section className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 space-y-6">
-            <div className="flex items-center gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30">
-                <Search className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Basic Information</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Define what you're looking for</p>
-              </div>
+          <FormCard
+            title="Basic Information"
+            description="Define what you're looking for"
+            icon={Search}
+            delay={0.1}
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Niche"
+                icon={Search}
+                required
+                value={formData.niche}
+                onChange={(e) => setFormData({ ...formData, niche: e.target.value })}
+                placeholder="e.g. dentist clinic, restaurant, hospital"
+                helperText="The type of business or industry you want to find"
+              />
+              <Input
+                label="Location"
+                icon={MapPin}
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                placeholder="e.g. Karachi, London, Dubai"
+                helperText="Optional: Filter results by location"
+              />
             </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                  <Search className="w-4 h-4" />
-                  Niche *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.niche}
-                  onChange={(e) =>
-                    setFormData({ ...formData, niche: e.target.value })
-                  }
-                  placeholder="e.g. dentist clinic, restaurant, hospital"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                  <MapPin className="w-4 h-4" />
-                  Location
-                </label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) =>
-                    setFormData({ ...formData, location: e.target.value })
-                  }
-                  placeholder="e.g. Karachi, London, Dubai"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Max Results
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="500"
-                    value={formData.max_results}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        max_results: parseInt(e.target.value) || 20,
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Max Pages Per Site
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={formData.max_pages_per_site}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        max_pages_per_site: parseInt(e.target.value) || 5,
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                  />
-                </div>
-              </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Max Results"
+                type="number"
+                min={1}
+                max={500}
+                value={formData.max_results}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    max_results: parseInt(e.target.value) || 20,
+                  })
+                }
+                helperText="Maximum number of leads to collect (1-500)"
+              />
+              <Input
+                label="Max Pages Per Site"
+                type="number"
+                min={1}
+                max={20}
+                value={formData.max_pages_per_site}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    max_pages_per_site: parseInt(e.target.value) || 5,
+                  })
+                }
+                helperText="How many pages to crawl per website (1-20)"
+              />
             </div>
-          </section>
+          </FormCard>
 
           {/* Data Sources */}
-          <section className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 space-y-6">
-            <div className="flex items-center gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <div className="p-2 rounded-lg bg-cyan-50 dark:bg-cyan-950/30">
-                <Database className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Data Sources</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Select which sources to use for finding leads</p>
-              </div>
-            </div>
-            
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
+          <FormCard
+            title="Data Sources"
+            description="Select which sources to use for finding leads"
+            icon={Database}
+            delay={0.2}
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <motion.div
+                whileHover={{ scale: 1.02, y: -2 }}
+                className="p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-cyan-50/30 dark:hover:bg-cyan-950/20 transition-all cursor-pointer"
+                onClick={() =>
+                  setFormData({
+                    ...formData,
+                    sources: { ...formData.sources, google_search: !formData.sources.google_search },
+                  })
+                }
+              >
+                <Checkbox
+                  label="Google Custom Search"
+                  description="Search Google for business listings"
                   checked={formData.sources.google_search}
                   onChange={(e) =>
                     setFormData({
@@ -255,20 +220,22 @@ export default function NewJobPage() {
                       sources: { ...formData.sources, google_search: e.target.checked },
                     })
                   }
-                  className="mt-0.5 w-5 h-5 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
                 />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Search className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-50">Google Custom Search</span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Search Google for business listings</p>
-                </div>
-              </label>
+              </motion.div>
 
-              <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
+              <motion.div
+                whileHover={{ scale: 1.02, y: -2 }}
+                className="p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-cyan-50/30 dark:hover:bg-cyan-950/20 transition-all cursor-pointer"
+                onClick={() =>
+                  setFormData({
+                    ...formData,
+                    sources: { ...formData.sources, google_places: !formData.sources.google_places },
+                  })
+                }
+              >
+                <Checkbox
+                  label="Google Places"
+                  description="Requires Google Places API key"
                   checked={formData.sources.google_places}
                   onChange={(e) =>
                     setFormData({
@@ -276,21 +243,25 @@ export default function NewJobPage() {
                       sources: { ...formData.sources, google_places: e.target.checked },
                     })
                   }
-                  className="mt-0.5 w-5 h-5 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
                 />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-50">Google Places</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 font-medium">API Key</span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Requires Google Places API key</p>
-                </div>
-              </label>
+                <span className="ml-7 mt-1 inline-block text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 font-medium">
+                  API Key Required
+                </span>
+              </motion.div>
 
-              <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
+              <motion.div
+                whileHover={{ scale: 1.02, y: -2 }}
+                className="p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-cyan-50/30 dark:hover:bg-cyan-950/20 transition-all cursor-pointer"
+                onClick={() =>
+                  setFormData({
+                    ...formData,
+                    sources: { ...formData.sources, web_search: !formData.sources.web_search },
+                  })
+                }
+              >
+                <Checkbox
+                  label="Web Search (Bing)"
+                  description="Requires Bing Search API key"
                   checked={formData.sources.web_search}
                   onChange={(e) =>
                     setFormData({
@@ -298,21 +269,25 @@ export default function NewJobPage() {
                       sources: { ...formData.sources, web_search: e.target.checked },
                     })
                   }
-                  className="mt-0.5 w-5 h-5 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
                 />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-50">Web Search (Bing)</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 font-medium">API Key</span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Requires Bing Search API key</p>
-                </div>
-              </label>
+                <span className="ml-7 mt-1 inline-block text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 font-medium">
+                  API Key Required
+                </span>
+              </motion.div>
 
-              <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
+              <motion.div
+                whileHover={{ scale: 1.02, y: -2 }}
+                className="p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-cyan-50/30 dark:hover:bg-cyan-950/20 transition-all cursor-pointer"
+                onClick={() =>
+                  setFormData({
+                    ...formData,
+                    sources: { ...formData.sources, crawling: !formData.sources.crawling },
+                  })
+                }
+              >
+                <Checkbox
+                  label="Website Crawling"
+                  description="Crawl websites for additional data"
                   checked={formData.sources.crawling}
                   onChange={(e) =>
                     setFormData({
@@ -320,184 +295,107 @@ export default function NewJobPage() {
                       sources: { ...formData.sources, crawling: e.target.checked },
                     })
                   }
-                  className="mt-0.5 w-5 h-5 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
                 />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Settings className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-50">Website Crawling</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 font-medium">Enrichment</span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Crawl websites for additional data</p>
-                </div>
-              </label>
+                <span className="ml-7 mt-1 inline-block text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 font-medium">
+                  Enrichment
+                </span>
+              </motion.div>
             </div>
-          </section>
+          </FormCard>
 
           {/* Data Extraction */}
-          <section className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 space-y-6">
-            <div className="flex items-center gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/30">
-                <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">What data to extract</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Choose what information to collect from websites</p>
-              </div>
+          <FormCard
+            title="What data to extract"
+            description="Choose what information to collect from websites"
+            icon={Sparkles}
+            delay={0.3}
+          >
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[
+                { key: "emails", label: "Email addresses", icon: Mail, description: "Extract email addresses from websites" },
+                { key: "phones", label: "Phone numbers", icon: Phone, description: "Find phone numbers and contact info" },
+                { key: "services", label: "Services / Categories", icon: FileText, description: "Identify business services" },
+                { key: "social_links", label: "Social media links", icon: Globe, description: "Find social media profiles" },
+                { key: "social_numbers", label: "Contacts from social", icon: Users, description: "Extract contacts from social pages" },
+                { key: "website_content", label: "Full website content", icon: FileText, description: "Extract all website text content" },
+              ].map((item) => (
+                <motion.div
+                  key={item.key}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  className="p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 hover:border-purple-300 dark:hover:border-purple-700 hover:bg-purple-50/30 dark:hover:bg-purple-950/20 transition-all cursor-pointer"
+                  onClick={() =>
+                    setFormData({
+                      ...formData,
+                      extract: { ...formData.extract, [item.key]: !formData.extract[item.key as keyof typeof formData.extract] },
+                    })
+                  }
+                >
+                  <Checkbox
+                    label={item.label}
+                    description={item.description}
+                    checked={formData.extract[item.key as keyof typeof formData.extract] as boolean}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        extract: { ...formData.extract, [item.key]: e.target.checked },
+                      })
+                    }
+                  />
+                </motion.div>
+              ))}
             </div>
-            
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={formData.extract.emails}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      extract: { ...formData.extract, emails: e.target.checked },
-                    })
-                  }
-                  className="mt-0.5 w-5 h-5 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-50">Email addresses</span>
-                  </div>
-                </div>
-              </label>
-
-              <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={formData.extract.phones}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      extract: { ...formData.extract, phones: e.target.checked },
-                    })
-                  }
-                  className="mt-0.5 w-5 h-5 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-50">Phone numbers</span>
-                  </div>
-                </div>
-              </label>
-
-              <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={formData.extract.services}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      extract: { ...formData.extract, services: e.target.checked },
-                    })
-                  }
-                  className="mt-0.5 w-5 h-5 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-50">Services / Categories</span>
-                  </div>
-                </div>
-              </label>
-
-              <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={formData.extract.social_links}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      extract: { ...formData.extract, social_links: e.target.checked },
-                    })
-                  }
-                  className="mt-0.5 w-5 h-5 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-50">Social media links</span>
-                  </div>
-                </div>
-              </label>
-
-              <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={formData.extract.social_numbers}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      extract: { ...formData.extract, social_numbers: e.target.checked },
-                    })
-                  }
-                  className="mt-0.5 w-5 h-5 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-50">Contacts from social pages</span>
-                  </div>
-                </div>
-              </label>
-
-              <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={formData.extract.website_content}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      extract: { ...formData.extract, website_content: e.target.checked },
-                    })
-                  }
-                  className="mt-0.5 w-5 h-5 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    <span className="text-sm font-medium text-slate-900 dark:text-slate-50">Full website content</span>
-                  </div>
-                </div>
-              </label>
-            </div>
-          </section>
+          </FormCard>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-2">
-            <Button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-indigo-500 hover:bg-indigo-400 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="flex gap-4 pt-4"
+          >
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="flex-1"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating Job...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Create Job
-                </>
-              )}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.back()}
-              disabled={loading}
-              className="px-6"
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-500 hover:from-cyan-400 hover:via-blue-400 hover:to-cyan-400 text-white shadow-xl shadow-cyan-500/25 dark:shadow-cyan-500/40 text-base font-semibold py-6 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
+              >
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                  animate={{ x: ["-100%", "100%"] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                />
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin relative z-10" />
+                    <span className="relative z-10">Creating Job...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-5 h-5 mr-2 relative z-10" />
+                    <span className="relative z-10">Create Scrape Job</span>
+                  </>
+                )}
+              </Button>
+            </motion.div>
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
             >
-              Cancel
-            </Button>
-          </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.back()}
+                disabled={loading}
+                className="px-8 py-6 text-base"
+              >
+                Cancel
+              </Button>
+            </motion.div>
+          </motion.div>
         </motion.form>
       </main>
     </div>

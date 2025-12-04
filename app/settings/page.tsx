@@ -3,10 +3,14 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/Input";
+import { FormCard } from "@/components/ui/FormCard";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { MetricCard } from "@/components/ui/metrics";
 import { apiClient } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Copy, Trash2, Plus, X, Check, Upload, Image as ImageIcon } from "lucide-react";
+import { Copy, Trash2, Plus, X, Upload, Image as ImageIcon, Key, Building2, BarChart3, Loader2 } from "lucide-react";
 import { CopyButton } from "@/components/ui/CopyButton";
 
 interface Organization {
@@ -39,7 +43,7 @@ interface UsageStats {
 
 export default function SettingsPage() {
   const { showToast } = useToast();
-  const { organization: orgFromContext, refreshOrganization, updateOrganization: updateOrgContext } = useOrganization();
+  const { organization: orgFromContext, refreshOrganization } = useOrganization();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [orgName, setOrgName] = useState("");
   const [brandName, setBrandName] = useState("");
@@ -64,7 +68,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (organization?.logo_url) {
-      // Use full URL if it's already a URL, otherwise prepend API URL
       const logoUrl = organization.logo_url.startsWith("http") 
         ? organization.logo_url 
         : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002"}${organization.logo_url}`;
@@ -74,9 +77,17 @@ export default function SettingsPage() {
     }
   }, [organization?.logo_url]);
 
+  useEffect(() => {
+    if (orgFromContext) {
+      setOrganization(orgFromContext);
+      setOrgName(orgFromContext.name);
+      setBrandName(orgFromContext.brand_name || "");
+      setTagline(orgFromContext.tagline || "");
+    }
+  }, [orgFromContext]);
+
   const loadOrganization = async () => {
     try {
-      // Use context if available, otherwise fetch
       if (orgFromContext) {
         setOrganization(orgFromContext);
         setOrgName(orgFromContext.name);
@@ -99,15 +110,6 @@ export default function SettingsPage() {
     }
   };
 
-  useEffect(() => {
-    if (orgFromContext) {
-      setOrganization(orgFromContext);
-      setOrgName(orgFromContext.name);
-      setBrandName(orgFromContext.brand_name || "");
-      setTagline(orgFromContext.tagline || "");
-    }
-  }, [orgFromContext]);
-
   const saveOrganization = async () => {
     if (!orgName.trim()) {
       showToast({
@@ -120,7 +122,6 @@ export default function SettingsPage() {
 
     setSavingOrg(true);
     try {
-      // Update organization with all fields
       const updated = await apiClient.updateOrganization(
         orgName.trim(),
         brandName.trim() || null,
@@ -236,7 +237,6 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/svg+xml", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
       showToast({
@@ -247,7 +247,6 @@ export default function SettingsPage() {
       return;
     }
 
-    // Validate file size (5MB)
     if (file.size > 5 * 1024 * 1024) {
       showToast({
         type: "error",
@@ -276,7 +275,6 @@ export default function SettingsPage() {
       });
     } finally {
       setUploadingLogo(false);
-      // Reset input
       e.target.value = "";
     }
   };
@@ -305,53 +303,78 @@ export default function SettingsPage() {
     }
   };
 
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="sticky top-0 z-10 bg-white/90 dark:bg-slate-950/90 backdrop-blur border-b border-slate-200 dark:border-slate-800">
-          <div className="px-6 py-4">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Settings</h1>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Manage your organization settings, API keys, and usage.
-            </p>
-          </div>
-        </header>
+  const hasChanges = organization && (
+    orgName !== organization.name ||
+    brandName !== (organization.brand_name || "") ||
+    tagline !== (organization.tagline || "")
+  );
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto px-6 pt-6 pb-10 space-y-6 max-w-5xl mx-auto w-full">
-          {/* Organization card */}
-          <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4">
-            <h2 className="text-sm font-semibold text-slate-100">Organization</h2>
-            <div className="space-y-4">
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <PageHeader
+        title="Settings"
+        description="Manage your organization settings, API keys, and usage"
+        icon={Building2}
+      />
+
+      <main className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar px-6 pt-6 pb-12">
+        <div className="max-w-5xl mx-auto space-y-6">
+          {/* Usage Stats */}
+          {usageStats && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-1 sm:grid-cols-4 gap-4"
+            >
+              <MetricCard label="Current Plan" value={usageStats.plan_tier.toUpperCase()} icon={BarChart3} />
+              <MetricCard
+                label="Leads This Month"
+                value={`${formatNumber(usageStats.leads_used_this_month)} / ${formatNumber(usageStats.leads_limit_per_month)}`}
+                tone="info"
+              />
+              <MetricCard label="Total Leads" value={formatNumber(usageStats.total_leads)} />
+              <MetricCard label="Total Jobs" value={formatNumber(usageStats.total_jobs)} />
+            </motion.section>
+          )}
+
+          {/* Organization Settings */}
+          <FormCard
+            title="Organization"
+            description="Manage your organization details and branding"
+            icon={Building2}
+            delay={0.1}
+          >
+            <div className="space-y-6">
               {/* Logo Upload */}
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400">Organization Logo</label>
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Organization Logo
+                </label>
                 <div className="flex items-center gap-4">
-                  {/* Logo Preview */}
                   <div className="relative">
                     {logoPreview ? (
                       <div className="relative group">
                         <img
                           src={logoPreview}
                           alt="Organization logo"
-                          className="h-16 w-16 rounded-lg object-cover border border-slate-800"
+                          className="h-20 w-20 rounded-xl object-cover border-2 border-slate-200 dark:border-slate-700 shadow-lg"
                         />
-                        <button
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
                           onClick={handleDeleteLogo}
-                          className="absolute -top-2 -right-2 p-1 rounded-full bg-rose-500 hover:bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute -top-2 -right-2 p-1.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
                           title="Remove logo"
                         >
-                          <X className="w-3 h-3" />
-                        </button>
+                          <X className="w-3.5 h-3.5" />
+                        </motion.button>
                       </div>
                     ) : (
-                      <div className="h-16 w-16 rounded-lg border-2 border-dashed border-slate-700 flex items-center justify-center bg-slate-900">
-                        <ImageIcon className="w-6 h-6 text-slate-500" />
+                      <div className="h-20 w-20 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center bg-slate-100 dark:bg-slate-900">
+                        <ImageIcon className="w-8 h-8 text-slate-400" />
                       </div>
                     )}
                   </div>
-                  
-                  {/* Upload Button */}
                   <div className="flex-1">
                     <input
                       id="logo-upload-input"
@@ -361,264 +384,299 @@ export default function SettingsPage() {
                       disabled={uploadingLogo}
                       className="hidden"
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={uploadingLogo}
-                      className="w-full sm:w-auto"
-                      onClick={() => document.getElementById('logo-upload-input')?.click()}
-                    >
-                      <Upload className="w-4 h-4 mr-2" />
-                      {uploadingLogo ? "Uploading..." : logoPreview ? "Change Logo" : "Upload Logo"}
-                    </Button>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={uploadingLogo}
+                        onClick={() => document.getElementById('logo-upload-input')?.click()}
+                        className="w-full sm:w-auto"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        {uploadingLogo ? "Uploading..." : logoPreview ? "Change Logo" : "Upload Logo"}
+                      </Button>
+                    </motion.div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
                       PNG, JPEG, GIF, SVG, or WebP. Max 5MB
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Organization Name */}
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400">Organization Name</label>
-                <input
-                  type="text"
-                  value={orgName}
-                  onChange={(e) => setOrgName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  placeholder="Enter organization name"
-                />
-              </div>
+              <Input
+                label="Organization Name"
+                required
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                placeholder="Enter organization name"
+              />
 
-              {/* Brand Name */}
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400">Brand Name</label>
-                <p className="text-xs text-slate-500 mb-1">Display name shown in sidebar (e.g., "LeadFlux AI")</p>
-                <input
-                  type="text"
-                  value={brandName}
-                  onChange={(e) => setBrandName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  placeholder="LeadFlux AI"
-                />
-              </div>
+              <Input
+                label="Brand Name"
+                value={brandName}
+                onChange={(e) => setBrandName(e.target.value)}
+                placeholder="LeadFlux AI"
+                helperText="Display name shown in sidebar (e.g., 'LeadFlux AI')"
+              />
 
-              {/* Tagline */}
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400">Tagline</label>
-                <p className="text-xs text-slate-500 mb-1">Short description shown below brand name (e.g., "Scrape • Enrich • Score")</p>
-                <input
-                  type="text"
-                  value={tagline}
-                  onChange={(e) => setTagline(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  placeholder="Scrape • Enrich • Score"
-                />
-              </div>
+              <Input
+                label="Tagline"
+                value={tagline}
+                onChange={(e) => setTagline(e.target.value)}
+                placeholder="Scrape • Enrich • Score"
+                helperText="Short description shown below brand name"
+              />
 
-              {/* Save Button */}
-              <div className="pt-2">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Button
                   onClick={saveOrganization}
-                  disabled={savingOrg || !organization || (orgName === organization.name && brandName === (organization.brand_name || "") && tagline === (organization.tagline || ""))}
-                  className="w-full bg-cyan-600 hover:bg-cyan-700 text-white"
+                  disabled={savingOrg || !hasChanges}
+                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
                 >
-                  {savingOrg ? "Saving..." : "Save Changes"}
+                  {savingOrg ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
                 </Button>
+              </motion.div>
+            </div>
+          </FormCard>
+
+          {/* API Keys */}
+          <FormCard
+            title="API Keys"
+            description="Create keys for programmatic access to scraping and enrichment APIs"
+            icon={Key}
+            delay={0.2}
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600 dark:text-slate-400">
+                  {apiKeys.length} key{apiKeys.length !== 1 ? "s" : ""} configured
+                </span>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowCreateKey(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create Key
+                  </Button>
+                </motion.div>
               </div>
-            </div>
-          </section>
 
-          {/* API Keys + Plan */}
-          <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-6">
-            <div>
-              <h2 className="text-sm font-semibold mb-1 text-slate-100">API Keys</h2>
-              <p className="text-[11px] text-slate-400 mb-3">
-                Create keys for programmatic access to scraping and enrichment APIs.
-              </p>
-              <div className="flex items-center justify-between mb-4">
-                <div></div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCreateKey(true)}
-                className="flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Create Key
-              </Button>
-            </div>
-
-            {/* Create API Key Modal */}
-            <AnimatePresence>
-              {showCreateKey && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mb-4 p-4 rounded-lg border border-slate-800 bg-slate-950 space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">Create New API Key</h3>
-                    <button
-                      onClick={() => {
-                        setShowCreateKey(false);
-                        setNewKeyName("");
-                        setNewKeyValue(null);
-                      }}
-                      className="text-slate-400 hover:text-slate-200"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {newKeyValue ? (
-                    <div className="space-y-3">
-                      <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-                        <p className="text-xs text-emerald-300 mb-2">
-                          ⚠️ Make sure to copy this key now. You won't be able to see it again!
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <code className="flex-1 px-3 py-2 rounded bg-slate-900 text-emerald-400 text-sm font-mono break-all">
-                            {newKeyValue}
-                          </code>
-                          <CopyButton textToCopy={newKeyValue} />
-                        </div>
-                      </div>
-                      <Button
+              {/* Create API Key Modal */}
+              <AnimatePresence>
+                {showCreateKey && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30 space-y-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">Create New API Key</h3>
+                      <motion.button
+                        whileHover={{ scale: 1.1, rotate: 90 }}
+                        whileTap={{ scale: 0.9 }}
                         onClick={() => {
                           setShowCreateKey(false);
-                          setNewKeyValue(null);
                           setNewKeyName("");
+                          setNewKeyValue(null);
                         }}
-                        className="w-full"
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                       >
-                        Done
-                      </Button>
+                        <X className="w-4 h-4" />
+                      </motion.button>
                     </div>
-                  ) : (
-                    <>
-                      <input
-                        type="text"
-                        value={newKeyName}
-                        onChange={(e) => setNewKeyName(e.target.value)}
-                        placeholder="Key name (optional)"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                      />
-                      <Button
-                        onClick={createApiKey}
-                        disabled={creatingKey}
-                        className="w-full bg-cyan-600 hover:bg-cyan-700 text-white"
-                      >
-                        {creatingKey ? "Creating..." : "Create API Key"}
-                      </Button>
-                    </>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* API Keys List */}
-            {loadingKeys ? (
-              <div className="text-sm text-slate-400 py-4">Loading API keys...</div>
-            ) : apiKeys.length === 0 ? (
-              <div className="text-sm text-slate-400 py-4">
-                No API keys yet. Create one to get started.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {apiKeys.map((key) => (
-                  <div
-                    key={key.id}
-                    className="flex items-center justify-between p-3 rounded-lg border border-slate-800 bg-slate-950"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-slate-200">
-                          {key.name || "Unnamed Key"}
-                        </span>
-                        {key.status === "active" ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            Active
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                            Revoked
-                          </span>
-                        )}
+                    {newKeyValue ? (
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 border border-emerald-200 dark:border-emerald-800">
+                          <p className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold mb-3 flex items-center gap-2">
+                            <X className="w-4 h-4" />
+                            Make sure to copy this key now. You won't be able to see it again!
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 px-4 py-3 rounded-lg bg-slate-900 dark:bg-slate-950 text-emerald-400 text-sm font-mono break-all border border-slate-800">
+                              {newKeyValue}
+                            </code>
+                            <CopyButton textToCopy={newKeyValue} />
+                          </div>
+                        </div>
+                        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                          <Button
+                            onClick={() => {
+                              setShowCreateKey(false);
+                              setNewKeyValue(null);
+                              setNewKeyName("");
+                            }}
+                            className="w-full"
+                          >
+                            Done
+                          </Button>
+                        </motion.div>
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <code className="text-xs text-slate-400 font-mono">
-                          {key.key_prefix}...
-                        </code>
-                        {key.last_used_at && (
-                          <span className="text-xs text-slate-500">
-                            • Last used: {new Date(key.last_used_at).toLocaleDateString()}
-                          </span>
-                        )}
+                    ) : (
+                      <div className="space-y-3">
+                        <Input
+                          label="Key Name (Optional)"
+                          value={newKeyName}
+                          onChange={(e) => setNewKeyName(e.target.value)}
+                          placeholder="My API Key"
+                        />
+                        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                          <Button
+                            onClick={createApiKey}
+                            disabled={creatingKey}
+                            className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
+                          >
+                            {creatingKey ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Creating...
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-4 h-4 mr-2" />
+                                Create API Key
+                              </>
+                            )}
+                          </Button>
+                        </motion.div>
                       </div>
-                    </div>
-                    {key.status === "active" && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => revokeApiKey(key.id)}
-                        className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
                     )}
-                  </div>
-                ))}
-              </div>
-            )}
-            </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            <div className="border-t border-slate-800 pt-4">
-              <h2 className="text-sm font-semibold mb-1 text-slate-100">Plan & Usage</h2>
-              {loadingUsage ? (
-                <div className="text-sm text-slate-400 py-4">Loading usage stats...</div>
-              ) : usageStats ? (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400">Current Plan</span>
-                    <span className="text-slate-200 font-semibold uppercase">
-                      {usageStats.plan_tier}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400">Leads Used (This Month)</span>
-                    <span className="text-slate-200">
-                      {formatNumber(usageStats.leads_used_this_month)} / {formatNumber(usageStats.leads_limit_per_month)}
-                    </span>
-                  </div>
-                  <div className="mt-2">
-                    <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                      <motion.div
-                        className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400"
-                        initial={{ width: 0 }}
-                        animate={{
-                          width: `${Math.min(100, (usageStats.leads_used_this_month / usageStats.leads_limit_per_month) * 100)}%`,
-                        }}
-                        transition={{ duration: 0.5 }}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-800">
-                    <span className="text-slate-400">Total Leads</span>
-                    <span className="text-slate-200">{formatNumber(usageStats.total_leads)}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400">Total Jobs</span>
-                    <span className="text-slate-200">{formatNumber(usageStats.total_jobs)}</span>
-                  </div>
+              {/* API Keys List */}
+              {loadingKeys ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Loading API keys...</p>
+                </div>
+              ) : apiKeys.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                  <Key className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">No API keys yet. Create one to get started.</p>
                 </div>
               ) : (
-                <div className="text-sm text-slate-400 py-4">Failed to load usage stats</div>
+                <div className="space-y-3">
+                  {apiKeys.map((key, index) => (
+                    <motion.div
+                      key={key.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 hover:bg-slate-100/50 dark:hover:bg-slate-900/50 transition-colors"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                            {key.name || "Unnamed Key"}
+                          </span>
+                          {key.status === "active" ? (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                              Revoked
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                          <code className="font-mono">{key.key_prefix}...</code>
+                          {key.last_used_at && (
+                            <span>• Last used: {new Date(key.last_used_at).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                      {key.status === "active" && (
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => revokeApiKey(key.id)}
+                          className="p-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </motion.button>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
               )}
             </div>
-          </section>
-        </main>
-      </div>
+          </FormCard>
+
+          {/* Plan & Usage */}
+          {usageStats && (
+            <FormCard
+              title="Plan & Usage"
+              description="Monitor your current plan and usage statistics"
+              icon={BarChart3}
+              delay={0.3}
+            >
+              <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Current Plan</div>
+                    <div className="text-lg font-bold text-slate-900 dark:text-slate-50 uppercase">
+                      {usageStats.plan_tier}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Leads Used (This Month)</div>
+                    <div className="text-lg font-bold text-slate-900 dark:text-slate-50">
+                      {formatNumber(usageStats.leads_used_this_month)} / {formatNumber(usageStats.leads_limit_per_month)}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span className="text-slate-600 dark:text-slate-400">Monthly Usage</span>
+                    <span className="text-slate-900 dark:text-slate-50 font-semibold">
+                      {Math.round((usageStats.leads_used_this_month / usageStats.leads_limit_per_month) * 100)}%
+                    </span>
+                  </div>
+                  <div className="h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-cyan-500 to-emerald-500"
+                      initial={{ width: 0 }}
+                      animate={{
+                        width: `${Math.min(100, (usageStats.leads_used_this_month / usageStats.leads_limit_per_month) * 100)}%`,
+                      }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+                  <div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Total Leads</div>
+                    <div className="text-xl font-bold text-slate-900 dark:text-slate-50">
+                      {formatNumber(usageStats.total_leads)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Total Jobs</div>
+                    <div className="text-xl font-bold text-slate-900 dark:text-slate-50">
+                      {formatNumber(usageStats.total_jobs)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </FormCard>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }

@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { Input } from "@/components/ui/Input";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { FormCard } from "@/components/ui/FormCard";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -118,7 +122,6 @@ export default function GoogleMapsPage() {
       return;
     }
 
-    // Convert to CSV
     const headers = ["Name", "Address", "Phone", "Email", "Website", "Rating", "Reviews", "Category"];
     const csvRows = [
       headers.join(","),
@@ -153,110 +156,77 @@ export default function GoogleMapsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-800">
-        <div className="mx-auto max-w-7xl px-4 md:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50 flex items-center gap-2">
-                <Navigation className="w-6 h-6 text-blue-500" />
-                Google Maps Search
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Search Google Maps for businesses and extract contact information
-              </p>
-            </div>
-            {results.length > 0 && (
+    <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <PageHeader
+        title="Google Maps Search"
+        description="Search Google Maps for businesses and extract contact information"
+        icon={Navigation}
+        action={
+          results.length > 0 && (
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Button
                 onClick={handleExport}
-                className="bg-green-500 hover:bg-green-400 text-white dark:text-slate-950"
+                className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 text-white shadow-lg shadow-emerald-500/25"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export CSV
               </Button>
+            </motion.div>
+          )
+        }
+      />
+
+      <main className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar px-6 pt-6 pb-12">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="rounded-2xl bg-gradient-to-r from-rose-50 to-red-50 dark:from-rose-950/30 dark:to-red-950/30 border border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-400 px-5 py-4 flex items-start gap-3 shadow-lg"
+              >
+                <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                <div>
+                  <strong className="font-semibold">Error:</strong> {error}
+                </div>
+              </motion.div>
             )}
-          </div>
-        </div>
-      </header>
+          </AnimatePresence>
 
-      <main className="mx-auto max-w-7xl px-4 md:px-8 pt-6 pb-10">
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 px-4 py-3 flex items-start gap-3"
+          {/* Search Form */}
+          <FormCard
+            title="Search Parameters"
+            description="Enter your search query and location"
+            icon={Search}
           >
-            <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-            <div>
-              <strong className="font-semibold">Error:</strong> {error}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Search Form */}
-        <motion.form
-          onSubmit={handleSearch}
-          className="mb-8"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <div className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 space-y-6">
-            <div className="flex items-center gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30">
-                <Search className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Search Parameters</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Enter your search query and location</p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                  <Search className="w-4 h-4" />
-                  Search Query *
-                </label>
-                <input
-                  type="text"
+            <form onSubmit={handleSearch} className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Input
+                  label="Search Query"
+                  icon={Search}
                   required
                   value={searchParams.query}
-                  onChange={(e) =>
-                    setSearchParams({ ...searchParams, query: e.target.value })
-                  }
+                  onChange={(e) => setSearchParams({ ...searchParams, query: e.target.value })}
                   placeholder="e.g. orthopedic doctor, find doctor, restaurant"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                  helperText="What type of business are you looking for?"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                  <MapPin className="w-4 h-4" />
-                  Location
-                </label>
-                <input
-                  type="text"
+                <Input
+                  label="Location"
+                  icon={MapPin}
                   value={searchParams.location}
-                  onChange={(e) =>
-                    setSearchParams({ ...searchParams, location: e.target.value })
-                  }
+                  onChange={(e) => setSearchParams({ ...searchParams, location: e.target.value })}
                   placeholder="e.g. New York, Los Angeles, CA"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                  helperText="Optional: Filter results by location"
                 />
               </div>
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Max Results
-                </label>
-                <input
+              <div className="grid gap-4 md:grid-cols-2">
+                <Input
+                  label="Max Results"
                   type="number"
-                  min="1"
-                  max="100"
+                  min={1}
+                  max={100}
                   value={searchParams.max_results}
                   onChange={(e) =>
                     setSearchParams({
@@ -264,14 +234,12 @@ export default function GoogleMapsPage() {
                       max_results: parseInt(e.target.value) || 20,
                     })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                  helperText="Maximum number of businesses to find (1-100)"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
+                <div className="flex items-center pt-8">
+                  <Checkbox
+                    label="Extract Emails from Websites"
+                    description="Visit each business website to extract email addresses (slower)"
                     checked={searchParams.extract_emails}
                     onChange={(e) =>
                       setSearchParams({
@@ -279,208 +247,230 @@ export default function GoogleMapsPage() {
                         extract_emails: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-blue-600 focus:ring-blue-500 focus:ring-2 cursor-pointer"
                   />
-                  Extract Emails from Websites
-                  <span className="text-xs text-slate-500">(slower)</span>
-                </label>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Visit each business website to extract email addresses
-                </p>
+                </div>
               </div>
-            </div>
 
-            <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
-              <Button
-                type="submit"
-                disabled={loading || !searchParams.query.trim()}
-                className="bg-blue-500 hover:bg-blue-400 text-white dark:text-slate-950 font-semibold min-w-[140px]"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Searching...
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4 mr-2" />
-                    Search Maps
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </motion.form>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button
+                  type="submit"
+                  disabled={loading || !searchParams.query.trim()}
+                  className="w-full bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-500 hover:from-blue-400 hover:via-cyan-400 hover:to-blue-400 text-white shadow-xl shadow-blue-500/25 dark:shadow-blue-500/40 text-base font-semibold py-6 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
+                >
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                    animate={{ x: ["-100%", "100%"] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  />
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin relative z-10" />
+                      <span className="relative z-10">Searching Google Maps...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-5 h-5 mr-2 relative z-10" />
+                      <span className="relative z-10">Search Maps</span>
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            </form>
+          </FormCard>
 
-        {/* Results */}
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-4" />
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+          {/* Loading State */}
+          {loading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-12 text-center shadow-2xl"
+            >
+              <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto mb-4" />
+              <p className="text-base font-semibold text-slate-900 dark:text-slate-50 mb-2">
                 Searching Google Maps...
               </p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 This may take a minute or two
               </p>
-            </div>
-          </div>
-        )}
+            </motion.div>
+          )}
 
-        {!loading && results.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-4"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
-                Results ({results.length})
-              </h2>
-            </div>
+          {/* Results */}
+          {!loading && results.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-blue-500" />
+                  Results ({results.length})
+                </h2>
+              </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {results.map((business, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 hover:shadow-lg transition-shadow"
-                >
-                  {/* Business Name */}
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-blue-500" />
-                      {business.name || "Unknown Business"}
-                    </h3>
-                    {business.rating && (
-                      <div className="flex items-center gap-1 text-xs bg-yellow-50 dark:bg-yellow-950/30 px-2 py-1 rounded-full">
-                        <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                        <span className="font-semibold">{business.rating}</span>
-                        {business.reviews && (
-                          <span className="text-slate-500">({business.reviews})</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Category */}
-                  {business.category && (
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mb-3">
-                      {business.category}
-                    </p>
-                  )}
-
-                  {/* Address */}
-                  {business.address && (
-                    <div className="flex items-start gap-2 mb-3 text-sm">
-                      <MapPin className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-slate-600 dark:text-slate-400 flex-1">
-                        {business.address}
-                      </span>
-                      <button
-                        onClick={() => handleCopy(business.address, index)}
-                        className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-                        title="Copy address"
-                      >
-                        {copiedIndex === index ? (
-                          <CheckCircle2 className="w-3 h-3 text-green-500" />
-                        ) : (
-                          <Copy className="w-3 h-3 text-slate-400" />
-                        )}
-                      </button>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {results.map((business, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                    whileHover={{ scale: 1.02, y: -4 }}
+                    className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-xl hover:shadow-2xl transition-all"
+                  >
+                    {/* Business Name & Rating */}
+                    <div className="flex items-start justify-between mb-4">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2 flex-1">
+                        <Building2 className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                        <span className="line-clamp-2">{business.name || "Unknown Business"}</span>
+                      </h3>
+                      {business.rating && (
+                        <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/30 border border-amber-200 dark:border-amber-800 flex-shrink-0 ml-2">
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                          <span className="text-xs font-bold text-amber-700 dark:text-amber-400">
+                            {business.rating}
+                          </span>
+                          {business.reviews && (
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              ({business.reviews})
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  {/* Contact Information */}
-                  <div className="space-y-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-                    {business.phone && (
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                          <Phone className="w-4 h-4" />
-                          <span>{business.phone}</span>
+                    {/* Category */}
+                    {business.category && (
+                      <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-3 px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/30 inline-block">
+                        {business.category}
+                      </p>
+                    )}
+
+                    {/* Address */}
+                    {business.address && (
+                      <div className="flex items-start gap-2 mb-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700">
+                        <MapPin className="w-4 h-4 text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-sm text-slate-700 dark:text-slate-300 flex-1">
+                          {business.address}
+                        </span>
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => handleCopy(business.address, index)}
+                          className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
+                          title="Copy address"
+                        >
+                          {copiedIndex === index ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                          ) : (
+                            <Copy className="w-4 h-4 text-slate-400" />
+                          )}
+                        </motion.button>
+                      </div>
+                    )}
+
+                    {/* Contact Information */}
+                    <div className="space-y-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+                      {business.phone && (
+                        <div className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                          <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                            <Phone className="w-4 h-4 text-slate-500" />
+                            <span>{business.phone}</span>
+                          </div>
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => handleCopy(business.phone, index)}
+                            className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                            title="Copy phone"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-slate-400" />
+                          </motion.button>
                         </div>
-                        <button
-                          onClick={() => handleCopy(business.phone, index)}
-                          className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-                          title="Copy phone"
-                        >
-                          <Copy className="w-3 h-3 text-slate-400" />
-                        </button>
-                      </div>
-                    )}
+                      )}
 
-                    {business.email && (
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                          <Mail className="w-4 h-4" />
-                          <span className="truncate">{business.email}</span>
+                      {business.email && (
+                        <div className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                          <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 flex-1 min-w-0">
+                            <Mail className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                            <span className="truncate">{business.email}</span>
+                          </div>
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => handleCopy(business.email, index)}
+                            className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors flex-shrink-0 ml-2"
+                            title="Copy email"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-slate-400" />
+                          </motion.button>
                         </div>
-                        <button
-                          onClick={() => handleCopy(business.email, index)}
-                          className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-                          title="Copy email"
-                        >
-                          <Copy className="w-3 h-3 text-slate-400" />
-                        </button>
-                      </div>
-                    )}
+                      )}
 
-                    {business.website && (
-                      <div className="flex items-center justify-between text-sm">
-                        <a
-                          href={business.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline truncate"
-                        >
-                          <Globe className="w-4 h-4 flex-shrink-0" />
-                          <span className="truncate">Website</span>
-                        </a>
-                        <button
-                          onClick={() => handleCopy(business.website, index)}
-                          className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-                          title="Copy website"
-                        >
-                          <Copy className="w-3 h-3 text-slate-400" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        )}
+                      {business.website && (
+                        <div className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                          <a
+                            href={business.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline flex-1 min-w-0"
+                          >
+                            <Globe className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">Visit Website</span>
+                          </a>
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => handleCopy(business.website, index)}
+                            className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors flex-shrink-0 ml-2"
+                            title="Copy website"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-slate-400" />
+                          </motion.button>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.section>
+          )}
 
-        {!loading && results.length === 0 && searchParams.query && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-20"
-          >
-            <Navigation className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              No results found. Try adjusting your search query or location.
-            </p>
-          </motion.div>
-        )}
+          {/* Empty States */}
+          {!loading && results.length === 0 && searchParams.query && (
+            <motion.section
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-12 text-center shadow-2xl"
+            >
+              <Navigation className="w-16 h-16 text-slate-400 dark:text-slate-600 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">
+                No results found
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Try adjusting your search query or location.
+              </p>
+            </motion.section>
+          )}
 
-        {!loading && !searchParams.query && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-20"
-          >
-            <Search className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Enter a search query to find businesses on Google Maps
-            </p>
-          </motion.div>
-        )}
+          {!loading && !searchParams.query && (
+            <motion.section
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-12 text-center shadow-2xl"
+            >
+              <Search className="w-16 h-16 text-slate-400 dark:text-slate-600 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">
+                Ready to Search
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Enter a search query to find businesses on Google Maps
+              </p>
+            </motion.section>
+          )}
+        </div>
       </main>
     </div>
   );
 }
-

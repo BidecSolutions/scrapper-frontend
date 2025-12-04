@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button"; // Fixed: lowercase import for case-sensitive filesystems
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Textarea";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { FormCard } from "@/components/ui/FormCard";
 import { useToast } from "@/components/ui/Toast";
 import { apiClient, type SavedView } from "@/lib/api";
 import {
@@ -12,8 +16,10 @@ import {
   Loader2,
   Plus,
   Upload,
-  Download,
+  Mail,
+  FileText,
   RefreshCw,
+  Eye,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MetricCard } from "@/components/ui/metrics";
@@ -50,14 +56,13 @@ export default function VerificationPage() {
     loadJobs();
   }, []);
 
-  // Poll for running jobs separately
   useEffect(() => {
     const hasRunningJobs = jobs.some(
       (j) => j.status === "running" || j.status === "pending"
     );
     
     if (!hasRunningJobs) {
-      return; // No need to poll if no running jobs
+      return;
     }
 
     const interval = setInterval(() => {
@@ -69,11 +74,10 @@ export default function VerificationPage() {
 
   const loadJobs = async () => {
     try {
-      // Only set loading on initial load
       if (jobs.length === 0) {
         setLoading(true);
       }
-      const data = await apiClient.getVerificationJobs({ limit: 50 });
+      const data = await apiClient.getVerificationJobs({ limit: 50, status: statusFilter || undefined });
       setJobs(data);
     } catch (error: any) {
       console.error("Failed to load verification jobs:", error);
@@ -87,15 +91,16 @@ export default function VerificationPage() {
     }
   };
 
+  useEffect(() => {
+    loadJobs();
+  }, [statusFilter]);
+
   const handleApplyView = (view: SavedView) => {
-    // Apply the saved view's filters
     if (view.filters.status) {
       setStatusFilter(view.filters.status);
     } else {
       setStatusFilter(null);
     }
-    // Reload jobs with the view's filters
-    // Note: The API might need to support status filtering in getVerificationJobs
     loadJobs();
   };
 
@@ -104,7 +109,7 @@ export default function VerificationPage() {
       showToast({
         type: "error",
         title: "No leads selected",
-        message: "Please select leads from the Leads page first",
+        message: "Please enter lead IDs or select leads from the Leads page",
       });
       return;
     }
@@ -180,41 +185,21 @@ export default function VerificationPage() {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
-            <CheckCircle2 className="w-3 h-3" />
-            Completed
-          </span>
-        );
-      case "running":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            Running
-          </span>
-        );
-      case "pending":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
-            Pending
-          </span>
-        );
-      case "failed":
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
-            <XCircle className="w-3 h-3" />
-            Failed
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">
-            {status}
-          </span>
-        );
-    }
+    const badges = {
+      completed: { icon: CheckCircle2, color: "emerald", label: "Completed" },
+      running: { icon: Loader2, color: "cyan", label: "Running", spin: true },
+      pending: { icon: AlertCircle, color: "amber", label: "Pending" },
+      failed: { icon: XCircle, color: "rose", label: "Failed" },
+    };
+    const badge = badges[status as keyof typeof badges] || { icon: AlertCircle, color: "slate", label: status };
+    const Icon = badge.icon;
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-${badge.color}-500/10 text-${badge.color}-400 border border-${badge.color}-500/30`}>
+        <Icon className={`w-3.5 h-3.5 ${badge.spin ? "animate-spin" : ""}`} />
+        {badge.label}
+      </span>
+    );
   };
 
   const getProgressPercent = (job: VerificationJob) => {
@@ -222,40 +207,36 @@ export default function VerificationPage() {
     return Math.round((job.processed_count / job.total_emails) * 100);
   };
 
-  // Calculate metrics
   const totalVerified = jobs.reduce((sum, j) => sum + j.valid_count + j.invalid_count + j.risky_count + j.unknown_count, 0);
   const totalValid = jobs.reduce((sum, j) => sum + j.valid_count, 0);
   const totalInvalid = jobs.reduce((sum, j) => sum + j.invalid_count, 0);
   const validPct = totalVerified > 0 ? `${Math.round((totalValid / totalVerified) * 100)}%` : "0%";
   const invalidPct = totalVerified > 0 ? `${Math.round((totalInvalid / totalVerified) * 100)}%` : "0%";
 
-  return (
-    <>
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur border-b border-slate-800">
-          <div className="px-6 py-4 flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
-                Email Verification
-              </h1>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Bulk verify email addresses from leads or CSV uploads.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowNewJobModal(true)}
-              className="inline-flex items-center rounded-lg bg-cyan-500 hover:bg-cyan-400 text-xs font-medium px-4 py-2 shadow-sm transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-1.5" />
-              New Verification Job
-            </button>
-          </div>
-        </header>
+  const filteredJobs = statusFilter ? jobs.filter(j => j.status === statusFilter) : jobs;
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto px-6 pt-6 pb-10 space-y-5">
-          {/* Saved Views Bar */}
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <PageHeader
+        title="Email Verification"
+        description="Bulk verify email addresses from leads or CSV uploads"
+        icon={Mail}
+        action={
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Button
+              onClick={() => setShowNewJobModal(true)}
+              className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg shadow-cyan-500/25"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Verification Job
+            </Button>
+          </motion.div>
+        }
+      />
+
+      <main className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar px-6 pt-6 pb-12">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Saved Views */}
           <SavedViewsBar
             pageType="verification"
             currentFilters={{
@@ -265,249 +246,343 @@ export default function VerificationPage() {
           />
 
           {/* Metrics */}
-          <section className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <MetricCard label="Verification jobs" value={jobs.length} />
-            <MetricCard label="Total verified" value={totalVerified} tone="info" />
-            <MetricCard label="Valid %" value={validPct} tone="success" />
-            <MetricCard label="Invalid %" value={invalidPct} tone="danger" />
-          </section>
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 sm:grid-cols-4 gap-4"
+          >
+            <MetricCard label="Verification Jobs" value={jobs.length} icon={FileText} />
+            <MetricCard label="Total Verified" value={totalVerified} tone="info" icon={CheckCircle2} />
+            <MetricCard label="Valid Rate" value={validPct} tone="success" icon={CheckCircle2} />
+            <MetricCard label="Invalid Rate" value={invalidPct} tone="danger" icon={XCircle} />
+          </motion.section>
+
+          {/* Status Filters */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-4 shadow-xl"
+          >
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Filter by status:</span>
+              {["all", "pending", "running", "completed", "failed"].map((status) => (
+                <motion.button
+                  key={status}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setStatusFilter(status === "all" ? null : status)}
+                  className={`px-4 py-2 text-xs rounded-lg font-medium transition-all ${
+                    (status === "all" && statusFilter === null) || statusFilter === status
+                      ? "bg-cyan-500/20 text-cyan-400 border-2 border-cyan-500/40 shadow-lg"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </motion.button>
+              ))}
+            </div>
+          </motion.section>
 
           {/* Jobs Table or Empty State */}
-          {loading && jobs.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
-              <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-              Loading jobs...
-            </div>
-          ) : jobs.length === 0 ? (
-            <section className="rounded-2xl bg-slate-900/80 border border-slate-800 px-6 py-10 text-center">
-              <p className="mb-2 text-sm text-slate-100">No verification jobs yet</p>
-              <p className="mb-5 text-xs text-slate-400">
-                Start by uploading a CSV or selecting leads to verify. We'll track each
-                job here with status, progress, and results.
-              </p>
-              <button
-                onClick={() => setShowNewJobModal(true)}
-                className="inline-flex items-center rounded-lg bg-cyan-500 hover:bg-cyan-400 text-xs font-medium px-4 py-2 shadow-sm transition-colors"
+          <AnimatePresence mode="wait">
+            {loading && jobs.length === 0 ? (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-center py-16"
               >
-                <Plus className="w-4 h-4 mr-1.5" />
-                Create First Verification Job
-              </button>
-            </section>
-          ) : (
-            <section className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-900">
-                    <tr className="text-slate-400">
-                      <th className="px-4 py-2 text-left font-medium">Source</th>
-                      <th className="px-4 py-2 text-left font-medium">Status</th>
-                      <th className="px-4 py-2 text-left font-medium">Progress</th>
-                      <th className="px-4 py-2 text-left font-medium">Results</th>
-                      <th className="px-4 py-2 text-left font-medium">Created</th>
-                      <th className="px-4 py-2 text-right font-medium">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {jobs.map((job) => (
-                      <motion.tr
-                        key={job.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="border-t border-slate-800 hover:bg-slate-900/70 transition-colors"
-                      >
-                        <td className="px-4 py-3">
-                          <div>
-                            <div className="text-slate-100 font-medium text-xs">
-                              {job.source_type === "leads" ? "Leads" : "CSV"}
+                <Loader2 className="w-10 h-10 animate-spin text-cyan-400 mx-auto mb-4" />
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading verification jobs...</p>
+              </motion.div>
+            ) : filteredJobs.length === 0 ? (
+              <motion.section
+                key="empty"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-12 text-center shadow-2xl"
+              >
+                <Mail className="w-16 h-16 text-slate-400 dark:text-slate-600 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">
+                  No verification jobs yet
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 max-w-md mx-auto">
+                  Start by uploading a CSV or selecting leads to verify. We'll track each job here with status, progress, and results.
+                </p>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button
+                    onClick={() => setShowNewJobModal(true)}
+                    className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create First Verification Job
+                  </Button>
+                </motion.div>
+              </motion.section>
+            ) : (
+              <motion.section
+                key="jobs"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ delay: 0.2 }}
+                className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 overflow-hidden shadow-2xl"
+              >
+                <div className="px-6 py-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-gradient-to-r from-slate-50/50 to-white/50 dark:from-slate-900/50 dark:to-slate-800/50">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-cyan-500" />
+                    Verification Jobs ({filteredJobs.length})
+                  </h3>
+                </div>
+                <div className="overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-100/50 dark:bg-slate-900/50 sticky top-0 z-10">
+                      <tr className="text-slate-600 dark:text-slate-400">
+                        <th className="px-6 py-3 text-left font-semibold">Source</th>
+                        <th className="px-6 py-3 text-left font-semibold">Status</th>
+                        <th className="px-6 py-3 text-left font-semibold">Progress</th>
+                        <th className="px-6 py-3 text-left font-semibold">Results</th>
+                        <th className="px-6 py-3 text-left font-semibold">Created</th>
+                        <th className="px-6 py-3 text-right font-semibold">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/50 dark:divide-slate-800/50">
+                      {filteredJobs.map((job, index) => (
+                        <motion.tr
+                          key={job.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          whileHover={{ backgroundColor: "rgba(6, 182, 212, 0.05)" }}
+                          className="transition-colors cursor-pointer"
+                          onClick={() => router.push(`/verification/${job.id}`)}
+                        >
+                          <td className="px-6 py-4">
+                            <div>
+                              <div className="text-slate-900 dark:text-slate-50 font-semibold text-sm">
+                                {job.source_type === "leads" ? "Leads" : "CSV"}
+                              </div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                {job.source_description}
+                              </div>
                             </div>
-                            <div className="text-[11px] text-slate-500">
-                              {job.source_description}
+                          </td>
+                          <td className="px-6 py-4">{getStatusBadge(job.status)}</td>
+                          <td className="px-6 py-4">
+                            <div className="space-y-2 min-w-[120px]">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-slate-600 dark:text-slate-400">
+                                  {job.processed_count} / {job.total_emails}
+                                </span>
+                                <span className="text-slate-900 dark:text-slate-50 font-semibold">
+                                  {getProgressPercent(job)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${getProgressPercent(job)}%` }}
+                                  transition={{ duration: 0.5 }}
+                                  className="bg-gradient-to-r from-cyan-500 to-blue-500 h-2 rounded-full"
+                                />
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">{getStatusBadge(job.status)}</td>
-                        <td className="px-4 py-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-slate-400">
-                                {job.processed_count} / {job.total_emails}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-4 text-xs">
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                {job.valid_count}
                               </span>
-                              <span className="text-slate-300">
-                                {getProgressPercent(job)}%
+                              <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
+                                <XCircle className="w-3.5 h-3.5" />
+                                {job.invalid_count}
+                              </span>
+                              <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                {job.risky_count}
                               </span>
                             </div>
-                            <div className="w-full bg-slate-800 rounded-full h-1.5">
-                              <div
-                                className="bg-cyan-500 h-1.5 rounded-full transition-all"
-                                style={{ width: `${getProgressPercent(job)}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3 text-[11px]">
-                            <span className="text-emerald-400">
-                              ✓ {job.valid_count}
-                            </span>
-                            <span className="text-rose-400">✗ {job.invalid_count}</span>
-                            <span className="text-amber-400">
-                              ⚠ {job.risky_count}
-                            </span>
-                            <span className="text-slate-400">? {job.unknown_count}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-400 text-[11px]">
-                          {new Date(job.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => {
-                              router.push(`/verification/${job.id}`);
-                            }}
-                            className="text-[11px] text-cyan-400 hover:text-cyan-300 font-medium"
-                          >
-                            View
-                          </button>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-        </main>
-      </div>
+                          </td>
+                          <td className="px-6 py-4 text-slate-600 dark:text-slate-400 text-xs">
+                            {new Date(job.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/verification/${job.id}`);
+                              }}
+                              className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-semibold text-xs flex items-center gap-1 ml-auto"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View
+                            </motion.button>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.section>
+            )}
+          </AnimatePresence>
+        </div>
+      </main>
 
       {/* New Job Modal */}
       <AnimatePresence>
         {showNewJobModal && (
-          <div key="modal" className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-slate-900 rounded-xl border border-slate-800 p-6 max-w-md w-full"
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 max-w-lg w-full shadow-2xl"
             >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-white">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                  <Plus className="w-5 h-5 text-cyan-500" />
                   New Verification Job
                 </h2>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  whileTap={{ scale: 0.9 }}
                   onClick={() => setShowNewJobModal(false)}
-                  className="text-slate-400 hover:text-slate-200"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none"
                 >
-                  ✕
-                </button>
+                  ×
+                </motion.button>
               </div>
 
               {/* Tabs */}
-              <div className="flex gap-2 mb-4 border-b border-slate-800">
-                <button
-                  onClick={() => setActiveTab("leads")}
-                  className={`px-4 py-2 text-sm font-medium transition-colors ${
-                    activeTab === "leads"
-                      ? "text-cyan-400 border-b-2 border-cyan-400"
-                      : "text-slate-400 hover:text-slate-300"
-                  }`}
-                >
-                  From Leads
-                </button>
-                <button
-                  onClick={() => setActiveTab("csv")}
-                  className={`px-4 py-2 text-sm font-medium transition-colors ${
-                    activeTab === "csv"
-                      ? "text-cyan-400 border-b-2 border-cyan-400"
-                      : "text-slate-400 hover:text-slate-300"
-                  }`}
-                >
-                  From CSV
-                </button>
+              <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-800">
+                {[
+                  { key: "leads", label: "From Leads", icon: FileText },
+                  { key: "csv", label: "From CSV", icon: Upload },
+                ].map((tab) => (
+                  <motion.button
+                    key={tab.key}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setActiveTab(tab.key as typeof activeTab)}
+                    className={`flex-1 px-4 py-2.5 text-sm font-semibold transition-all relative ${
+                      activeTab === tab.key
+                        ? "text-cyan-600 dark:text-cyan-400"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                    }`}
+                  >
+                    {activeTab === tab.key && (
+                      <motion.div
+                        layoutId="activeTab"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-cyan-500 rounded-full"
+                      />
+                    )}
+                    <span className="flex items-center justify-center gap-2">
+                      <tab.icon className="w-4 h-4" />
+                      {tab.label}
+                    </span>
+                  </motion.button>
+                ))}
               </div>
 
               {/* Leads Tab */}
-              {activeTab === "leads" && (
-                <div className="space-y-4">
-                  <p className="text-sm text-slate-400">
-                    Select leads from the Leads page, then use the bulk action
-                    "Verify emails" to create a verification job.
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Or enter lead IDs manually (comma-separated):
-                  </p>
-                  <input
-                    type="text"
-                    placeholder="1, 2, 3, 4, 5"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                    onChange={(e) => {
-                      const ids = e.target.value
-                        .split(",")
-                        .map((id) => parseInt(id.trim()))
-                        .filter((id) => !isNaN(id));
-                      setSelectedLeadIds(ids);
-                    }}
-                  />
-                  <Button
-                    onClick={handleCreateJobFromLeads}
-                    disabled={creatingJob || selectedLeadIds.length === 0}
-                    className="w-full bg-cyan-600 hover:bg-cyan-700 text-white"
+              <AnimatePresence mode="wait">
+                {activeTab === "leads" && (
+                  <motion.div
+                    key="leads"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    className="space-y-4"
                   >
-                    {creatingJob ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
-                        Create Job ({selectedLeadIds.length} leads)
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      Enter lead IDs (comma-separated) or select leads from the Leads page first.
+                    </p>
+                    <Input
+                      label="Lead IDs"
+                      icon={FileText}
+                      value={selectedLeadIds.join(", ")}
+                      onChange={(e) => {
+                        const ids = e.target.value
+                          .split(",")
+                          .map((id) => parseInt(id.trim()))
+                          .filter((id) => !isNaN(id));
+                        setSelectedLeadIds(ids);
+                      }}
+                      placeholder="1, 2, 3, 4, 5"
+                      helperText={`${selectedLeadIds.length} lead${selectedLeadIds.length !== 1 ? "s" : ""} selected`}
+                    />
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        onClick={handleCreateJobFromLeads}
+                        disabled={creatingJob || selectedLeadIds.length === 0}
+                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
+                      >
+                        {creatingJob ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Create Job ({selectedLeadIds.length} leads)
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
+                  </motion.div>
+                )}
 
-              {/* CSV Tab */}
-              {activeTab === "csv" && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm text-slate-400 mb-2 block">
-                      Email addresses (one per line, max 10,000)
-                    </label>
-                    <textarea
+                {/* CSV Tab */}
+                {activeTab === "csv" && (
+                  <motion.div
+                    key="csv"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    className="space-y-4"
+                  >
+                    <Textarea
+                      label="Email Addresses"
                       value={csvEmails}
                       onChange={(e) => setCsvEmails(e.target.value)}
                       rows={10}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-50 focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm"
                       placeholder="john@example.com&#10;jane@example.com&#10;..."
+                      helperText={`${csvEmails.split("\n").filter((e) => e.trim()).length} emails (max 10,000)`}
                     />
-                    <p className="text-xs text-slate-500 mt-1">
-                      {csvEmails.split("\n").filter((e) => e.trim()).length} emails
-                    </p>
-                  </div>
-                  <Button
-                    onClick={handleCreateJobFromCSV}
-                    disabled={creatingJob || csvEmails.trim().length === 0}
-                    className="w-full bg-cyan-600 hover:bg-cyan-700 text-white"
-                  >
-                    {creatingJob ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4 mr-2" />
-                        Create Job
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        onClick={handleCreateJobFromCSV}
+                        disabled={creatingJob || csvEmails.trim().length === 0}
+                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
+                      >
+                        {creatingJob ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Create Verification Job
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }
-

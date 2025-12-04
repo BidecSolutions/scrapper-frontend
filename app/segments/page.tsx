@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api";
 import type { Segment } from "@/types/segments";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Layers, Loader2, Trash2, Edit2, Users, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/Input";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 
 export default function SegmentsPage() {
@@ -75,115 +77,159 @@ export default function SegmentsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Segments</h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Organize leads into segments for targeted campaigns
-          </p>
-        </div>
-        <Button
-          onClick={() => router.push("/segments/new")}
-          className="bg-cyan-500 hover:bg-cyan-400 text-white"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New Segment
-        </Button>
-      </div>
-
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Search segments..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-        />
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-        </div>
-      ) : filteredSegments.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl bg-gradient-to-br from-slate-900/90 via-slate-900 to-slate-950 border border-slate-800 px-6 py-10 flex flex-col items-center text-center"
-        >
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/15 border border-cyan-500/40 mb-4">
-            <Layers className="w-6 h-6 text-cyan-400" />
-          </div>
-          <h2 className="text-lg font-semibold mb-1 text-slate-100">No segments yet</h2>
-          <p className="text-xs text-slate-400 max-w-md mb-6">
-            Create segments to group leads based on filters like location, score, or source.
-          </p>
-          <Button
-            onClick={() => router.push("/segments/new")}
-            className="bg-cyan-500 hover:bg-cyan-400 text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create First Segment
-          </Button>
-        </motion.div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredSegments.map((segment) => (
-            <motion.div
-              key={segment.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => router.push(`/segments/${segment.id}`)}
+    <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <PageHeader
+        title="Segments"
+        description="Organize leads into segments for targeted campaigns"
+        icon={Layers}
+        action={
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Button
+              onClick={() => router.push("/segments/new")}
+              className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg shadow-cyan-500/25"
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">
-                    {segment.name}
-                  </h3>
-                  {segment.description && (
-                    <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
-                      {segment.description}
-                    </p>
-                  )}
-                </div>
-                <div className="flex gap-2 ml-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(`/segments/${segment.id}/edit`);
-                    }}
-                    className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+              <Plus className="w-4 h-4 mr-2" />
+              New Segment
+            </Button>
+          </motion.div>
+        }
+      />
+
+      <main className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar px-6 pt-6 pb-12">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Search */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl"
+          >
+            <Input
+              label="Search Segments"
+              icon={Search}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name..."
+              helperText={`${filteredSegments.length} segment${filteredSegments.length !== 1 ? "s" : ""} found`}
+            />
+          </motion.section>
+
+          {/* Segments Grid */}
+          <AnimatePresence mode="wait">
+            {loading ? (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-center py-16"
+              >
+                <Loader2 className="w-10 h-10 animate-spin text-cyan-400 mx-auto mb-4" />
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading segments...</p>
+              </motion.div>
+            ) : filteredSegments.length === 0 ? (
+              <motion.section
+                key="empty"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-12 text-center shadow-2xl"
+              >
+                <Layers className="w-16 h-16 text-slate-400 dark:text-slate-600 mx-auto mb-4" />
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">
+                  {searchQuery ? "No segments found" : "No segments yet"}
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+                  {searchQuery
+                    ? "Try adjusting your search query"
+                    : "Create your first segment to organize leads"}
+                </p>
+                {!searchQuery && (
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button
+                      onClick={() => router.push("/segments/new")}
+                      className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create First Segment
+                    </Button>
+                  </motion.div>
+                )}
+              </motion.section>
+            ) : (
+              <motion.section
+                key="segments"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ delay: 0.1 }}
+                className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
+              >
+                {filteredSegments.map((segment, index) => (
+                  <motion.div
+                    key={segment.id}
+                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                    whileHover={{ scale: 1.02, y: -4 }}
+                    className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-xl hover:shadow-2xl transition-all cursor-pointer group"
+                    onClick={() => router.push(`/segments/${segment.id}`)}
                   >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(segment.id);
-                    }}
-                    className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-                <span className="flex items-center gap-1">
-                  <Layers className="w-3 h-3" />
-                  Filters
-                </span>
-                <span>{formatDate(segment.created_at)}</span>
-              </div>
-            </motion.div>
-          ))}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 shadow-lg">
+                        <Layers className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex gap-2">
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/segments/${segment.id}/edit`);
+                          }}
+                          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(segment.id);
+                          }}
+                          className="p-2 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 text-rose-600 dark:text-rose-400"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </motion.button>
+                      </div>
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                      {segment.name}
+                    </h3>
+                    {segment.description && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 line-clamp-2">
+                        {segment.description}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800">
+                      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                        <Users className="w-4 h-4" />
+                        <span className="font-semibold text-slate-900 dark:text-slate-50">
+                          {segment.total_leads || 0}
+                        </span>
+                        <span>leads</span>
+                      </div>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {formatDate(segment.created_at)}
+                      </span>
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.section>
+            )}
+          </AnimatePresence>
         </div>
-      )}
+      </main>
     </div>
   );
 }
-

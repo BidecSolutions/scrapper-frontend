@@ -2,6 +2,12 @@
 
 import { useState } from "react";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Textarea";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { FormCard } from "@/components/ui/FormCard";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { apiClient } from "@/lib/api";
 import {
   Mail,
@@ -12,412 +18,14 @@ import {
   Loader2,
   Save,
   Download,
-  ExternalLink,
+  User,
+  Globe,
+  Sparkles,
+  Lightbulb,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 type TabKey = "find" | "verify" | "bulk";
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[11px] text-slate-300">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function FindEmailCard({
-  finderForm,
-  setFinderForm,
-  finderLoading,
-  finderResult,
-  handleFindEmail,
-  getStatusIcon,
-  getStatusColor,
-  showToast,
-}: any) {
-  return (
-    <section className="grid gap-5 md:grid-cols-[2fr,1fr]">
-      {/* Form */}
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5">
-        <h3 className="text-sm font-semibold mb-1 text-slate-100">Find Email Address</h3>
-        <p className="text-[11px] text-slate-400 mb-4">
-          Use first name, last name, and company domain. We'll try common patterns
-          and optionally validate via SMTP.
-        </p>
-
-        <form
-          className="space-y-3 text-xs"
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleFindEmail();
-          }}
-        >
-          <div className="grid gap-3 md:grid-cols-3">
-            <Field label="First Name">
-              <input
-                type="text"
-                value={finderForm.firstName}
-                onChange={(e) =>
-                  setFinderForm({ ...finderForm, firstName: e.target.value })
-                }
-                className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400 placeholder:text-slate-500"
-                placeholder="John"
-              />
-            </Field>
-            <Field label="Last Name">
-              <input
-                type="text"
-                value={finderForm.lastName}
-                onChange={(e) =>
-                  setFinderForm({ ...finderForm, lastName: e.target.value })
-                }
-                className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400 placeholder:text-slate-500"
-                placeholder="Doe"
-              />
-            </Field>
-            <Field label="Company Domain">
-              <input
-                type="text"
-                value={finderForm.domain}
-                onChange={(e) =>
-                  setFinderForm({ ...finderForm, domain: e.target.value })
-                }
-                className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400 placeholder:text-slate-500"
-                placeholder="example.com"
-              />
-            </Field>
-          </div>
-
-          <label className="flex items-center gap-2 text-[11px] text-slate-300">
-            <input
-              type="checkbox"
-              checked={finderForm.skipSmtp}
-              onChange={(e) =>
-                setFinderForm({ ...finderForm, skipSmtp: e.target.checked })
-              }
-              className="h-3 w-3 rounded border-slate-600 bg-slate-950 text-cyan-500 focus:ring-cyan-400"
-            />
-            Skip SMTP check{" "}
-            <span className="text-slate-500">(faster but less accurate)</span>
-          </label>
-
-          <div className="pt-1">
-            <button
-              type="submit"
-              disabled={finderLoading}
-              className="inline-flex items-center rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium px-4 py-2 shadow-sm transition-colors"
-            >
-              {finderLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                  Finding...
-                </>
-              ) : (
-                <>
-                  <Search className="w-4 h-4 mr-1.5" />
-                  Find Email
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-
-        {/* Results */}
-        {finderResult && (
-          <div className="mt-4 pt-4 border-t border-slate-800">
-            {finderResult.email ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  {getStatusIcon(finderResult.status || "unknown")}
-                  <div className="flex-1">
-                    <div className="text-slate-100 font-medium text-sm">{finderResult.email}</div>
-                    <div className="text-[11px] text-slate-400">
-                      Confidence: {((finderResult.confidence || 0) * 100).toFixed(0)}%
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className={`px-3 py-2 rounded-lg border text-xs ${getStatusColor(
-                    finderResult.status || "unknown"
-                  )}`}
-                >
-                  <div className="font-medium capitalize">
-                    {finderResult.status || "unknown"}
-                  </div>
-                  <div className="text-[11px] mt-1 opacity-80">{finderResult.reason || ""}</div>
-                </div>
-                <button
-                  onClick={async () => {
-                    try {
-                      const result = await apiClient.saveEmailToLeads({
-                        first_name: finderForm.firstName,
-                        last_name: finderForm.lastName,
-                        email: finderResult.email!,
-                        domain: finderForm.domain,
-                        confidence: finderResult.confidence || undefined,
-                      });
-                      showToast({
-                        type: "success",
-                        title: "Saved to leads",
-                        message: `Lead created with ID: ${result.lead_id}`,
-                      });
-                    } catch (error: any) {
-                      showToast({
-                        type: "error",
-                        title: "Error",
-                        message: error?.response?.data?.detail || "Failed to save lead",
-                      });
-                    }
-                  }}
-                  className="inline-flex items-center rounded-lg bg-emerald-500 hover:bg-emerald-400 text-xs font-medium px-3 py-1.5 shadow-sm transition-colors"
-                >
-                  <Save className="w-4 h-4 mr-1.5" />
-                  Save to Leads
-                </button>
-              </div>
-            ) : (
-              <div className="text-slate-400 text-xs">
-                No confident email match found. Try adjusting the search or enabling SMTP
-                verification.
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Tips / helper card */}
-      <aside className="rounded-2xl bg-slate-900/60 border border-slate-800 p-4 text-[11px] space-y-3">
-        <p className="text-xs font-semibold text-slate-100 mb-1">Tips for better matches</p>
-        <ul className="space-y-2 text-slate-400">
-          <li>• Use the company's primary domain (not tracking or subdomains).</li>
-          <li>• Fill both first and last name for best pattern guesses.</li>
-          <li>• Keep SMTP check enabled when quality matters more than speed.</li>
-          <li>• Save successful results as templates for similar companies.</li>
-        </ul>
-      </aside>
-    </section>
-  );
-}
-
-function VerifyEmailPlaceholder({
-  verifierEmail,
-  setVerifierEmail,
-  verifierLoading,
-  verifierResult,
-  handleVerifyEmail,
-  getStatusIcon,
-  getStatusColor,
-}: any) {
-  return (
-    <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5">
-      <h3 className="text-sm font-semibold mb-1 text-slate-100">Verify Email Address</h3>
-      <p className="text-[11px] text-slate-400 mb-4">
-        Check if an email address is valid, deliverable, and safe to send to.
-      </p>
-
-      <form
-        className="space-y-3 text-xs"
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleVerifyEmail();
-        }}
-      >
-        <Field label="Email Address">
-          <input
-            type="email"
-            value={verifierEmail}
-            onChange={(e) => setVerifierEmail(e.target.value)}
-            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400 placeholder:text-slate-500"
-            placeholder="john.doe@example.com"
-          />
-        </Field>
-
-        <div className="pt-1">
-          <button
-            type="submit"
-            disabled={verifierLoading}
-            className="inline-flex items-center rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium px-4 py-2 shadow-sm transition-colors"
-          >
-            {verifierLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                Verifying...
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                Verify Email
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-
-      {verifierResult && (
-        <div className="mt-4 pt-4 border-t border-slate-800 space-y-3">
-          <div className="flex items-center gap-3">
-            {getStatusIcon(verifierResult.status)}
-            <div>
-              <div className="text-slate-100 font-medium text-sm">{verifierResult.email}</div>
-              {verifierResult.cached && (
-                <div className="text-[11px] text-slate-400">(Cached result)</div>
-              )}
-            </div>
-          </div>
-          <div
-            className={`px-3 py-2 rounded-lg border text-xs ${getStatusColor(verifierResult.status)}`}
-          >
-            <div className="font-medium capitalize">{verifierResult.status}</div>
-            <div className="text-[11px] mt-1 opacity-80">{verifierResult.reason}</div>
-            {verifierResult.confidence !== null && (
-              <div className="text-[11px] mt-1 opacity-80">
-                Confidence: {(verifierResult.confidence * 100).toFixed(0)}%
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function BulkVerifyPlaceholder({
-  bulkEmails,
-  setBulkEmails,
-  bulkLoading,
-  bulkResults,
-  handleBulkVerify,
-  getStatusIcon,
-  getStatusColor,
-  showToast,
-}: any) {
-  const emailCount = bulkEmails.split("\n").filter((e: string) => e.trim()).length;
-
-  return (
-    <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-sm font-semibold mb-1 text-slate-100">Bulk Email Verification</h3>
-          <p className="text-[11px] text-slate-400">
-            Verify up to 100 email addresses at once (one per line).
-          </p>
-        </div>
-        {bulkResults.length > 0 && (
-          <button
-            onClick={async () => {
-              try {
-                const response = await fetch(
-                  `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002"}/api/email-verifier/export/csv`
-                );
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `email_verifications_${new Date().toISOString().split("T")[0]}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-                showToast({
-                  type: "success",
-                  title: "Export successful",
-                  message: "Verification results downloaded",
-                });
-              } catch (error: any) {
-                showToast({
-                  type: "error",
-                  title: "Export failed",
-                  message: "Failed to export results",
-                });
-              }
-            }}
-            className="inline-flex items-center rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium px-3 py-1.5 shadow-sm transition-colors"
-          >
-            <Download className="w-4 h-4 mr-1.5" />
-            Export CSV
-          </button>
-        )}
-      </div>
-
-      <form
-        className="space-y-3 text-xs"
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleBulkVerify();
-        }}
-      >
-        <Field label={`Email Addresses (${emailCount} entered, max 100)`}>
-          <textarea
-            value={bulkEmails}
-            onChange={(e) => setBulkEmails(e.target.value)}
-            rows={10}
-            className="w-full rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400 placeholder:text-slate-500 font-mono resize-none"
-            placeholder="john.doe@example.com&#10;jane.smith@example.com&#10;..."
-          />
-        </Field>
-
-        <div className="pt-1">
-          <button
-            type="submit"
-            disabled={bulkLoading || emailCount === 0}
-            className="inline-flex items-center rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium px-4 py-2 shadow-sm transition-colors"
-          >
-            {bulkLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                Verifying...
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                Verify All ({emailCount} emails)
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-
-      {bulkResults.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-slate-800">
-          <h4 className="text-xs font-semibold text-slate-100 mb-3">
-            Results ({bulkResults.length})
-          </h4>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {bulkResults.map((result: any, idx: number) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between p-3 rounded-lg border border-slate-800 bg-slate-950"
-              >
-                <div className="flex items-center gap-3 flex-1">
-                  {getStatusIcon(result.status)}
-                  <div className="flex-1">
-                    <div className="text-slate-100 font-medium text-xs">{result.email}</div>
-                    <div className="text-[10px] text-slate-400">{result.reason}</div>
-                  </div>
-                </div>
-                <div
-                  className={`px-2 py-1 rounded text-[10px] font-medium ${getStatusColor(
-                    result.status
-                  )}`}
-                >
-                  {result.status}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
 
 export default function EmailFinderPage() {
   const { showToast } = useToast();
@@ -620,160 +228,495 @@ export default function EmailFinderPage() {
     }
   };
 
+  const emailCount = bulkEmails.split("\n").filter((e: string) => e.trim()).length;
+
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur border-b border-slate-800">
-          <div className="px-6 py-4 flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
-                Email Finder & Verifier
-              </h1>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Find and verify email addresses using pattern matching and SMTP checks.
-              </p>
-            </div>
-
-            <button
+    <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <PageHeader
+        title="Email Finder & Verifier"
+        description="Find and verify email addresses using pattern matching and SMTP checks"
+        icon={Mail}
+        action={
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Button
               onClick={handleDownloadExtension}
-              className="inline-flex items-center rounded-lg bg-cyan-500 hover:bg-cyan-400 text-xs font-medium px-4 py-2 shadow-sm transition-colors"
+              className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg shadow-cyan-500/25"
             >
-              <Download className="w-4 h-4 mr-1.5" />
-              Download Chrome Extension
-            </button>
-          </div>
-        </header>
+              <Download className="w-4 h-4 mr-2" />
+              Download Extension
+            </Button>
+          </motion.div>
+        }
+      />
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto px-6 pt-6 pb-10 space-y-6">
-          {/* LinkedIn Extension hero */}
+      <main className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar px-6 pt-6 pb-12">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* LinkedIn Extension Hero */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-slate-800 px-6 py-5 flex flex-col md:flex-row md:items-start gap-5"
+            className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl overflow-hidden relative"
           >
-            <div className="flex-shrink-0">
-              <div className="h-12 w-12 rounded-2xl bg-cyan-500/15 border border-cyan-400/60 flex items-center justify-center">
-                <span className="text-2xl font-semibold text-cyan-300">in</span>
-              </div>
-            </div>
-
-            <div className="flex-1 space-y-2 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-semibold text-slate-100">
-                  LinkedIn Email Finder Extension
-                </h2>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-400/40">
-                  Works on any LinkedIn profile
-                </span>
-              </div>
-
-              <p className="text-xs text-slate-300 max-w-2xl">
-                Install our Chrome extension to capture emails directly from LinkedIn
-                profiles while you browse. Perfect for manual prospecting and quick
-                research.
-              </p>
-
-              <div className="mt-3 grid gap-2 text-xs text-slate-200 md:grid-cols-2 lg:grid-cols-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-cyan-400 text-sm font-semibold">①</span>
-                  <span>Download and unzip the extension.</span>
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-blue-500/5 to-purple-500/5" />
+            <div className="relative z-10 flex flex-col md:flex-row gap-6">
+              <div className="flex-shrink-0">
+                <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg">
+                  <span className="text-3xl font-bold text-white">in</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-cyan-400 text-sm font-semibold">②</span>
-                  <span>
-                    Go to{" "}
-                    <code className="px-1 bg-slate-900 rounded text-cyan-300">chrome://extensions</code>.
+              </div>
+              <div className="flex-1 space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">
+                    LinkedIn Email Finder Extension
+                  </h2>
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
+                    Works on any LinkedIn profile
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-cyan-400 text-sm font-semibold">③</span>
-                  <span>
-                    Enable <strong>Developer mode</strong> and click <strong>Load unpacked</strong>.
-                  </span>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Install our Chrome extension to capture emails directly from LinkedIn profiles while you browse. Perfect for manual prospecting and quick research.
+                </p>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 text-sm">
+                  {[
+                    { num: "①", text: "Download and unzip the extension" },
+                    { num: "②", text: "Go to chrome://extensions" },
+                    { num: "③", text: "Enable Developer mode and Load unpacked" },
+                    { num: "④", text: "Select extension folder and browse LinkedIn" },
+                  ].map((step, idx) => (
+                    <motion.div
+                      key={idx}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                      className="flex items-start gap-2"
+                    >
+                      <span className="text-cyan-600 dark:text-cyan-400 font-bold text-base">{step.num}</span>
+                      <span className="text-slate-700 dark:text-slate-300 text-xs">{step.text}</span>
+                    </motion.div>
+                  ))}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-cyan-400 text-sm font-semibold">④</span>
-                  <span>Select the extension folder and start browsing LinkedIn.</span>
+                <div className="flex flex-wrap gap-3">
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Button
+                      onClick={handleDownloadExtension}
+                      className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Extension ZIP
+                    </Button>
+                  </motion.div>
+                  <a
+                    href="chrome://extensions"
+                    className="inline-flex items-center text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-semibold text-sm underline underline-offset-4"
+                  >
+                    Open Chrome Extensions Page →
+                  </a>
                 </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-3 text-xs">
-                <button
-                  onClick={handleDownloadExtension}
-                  className="inline-flex items-center rounded-lg bg-cyan-500 hover:bg-cyan-400 px-3 py-1.5 font-medium shadow-sm transition-colors"
-                >
-                  Download Extension ZIP
-                </button>
-                <a
-                  href="chrome://extensions"
-                  className="inline-flex items-center text-cyan-300 hover:text-cyan-200 underline underline-offset-4"
-                >
-                  Open Chrome Extensions Page →
-                </a>
               </div>
             </div>
           </motion.section>
 
           {/* Tabs */}
-          <nav className="flex items-center gap-6 border-b border-slate-800">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="flex items-center gap-6 border-b-2 border-slate-200 dark:border-slate-800"
+          >
             {[
-              { key: "find" as TabKey, label: "Find Email" },
-              { key: "verify" as TabKey, label: "Verify Email" },
-              { key: "bulk" as TabKey, label: "Bulk Verify" },
+              { key: "find" as TabKey, label: "Find Email", icon: Search },
+              { key: "verify" as TabKey, label: "Verify Email", icon: CheckCircle2 },
+              { key: "bulk" as TabKey, label: "Bulk Verify", icon: Sparkles },
             ].map((tab) => (
-              <button
+              <motion.button
                 key={tab.key}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveTab(tab.key)}
-                className={`py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
+                className={`relative py-3 px-4 text-sm font-semibold transition-all flex items-center gap-2 ${
                   activeTab === tab.key
-                    ? "border-cyan-400 text-slate-50"
-                    : "border-transparent text-slate-400 hover:text-slate-200"
+                    ? "text-cyan-600 dark:text-cyan-400"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                 }`}
               >
+                <tab.icon className="w-4 h-4" />
                 {tab.label}
-              </button>
+                {activeTab === tab.key && (
+                  <motion.div
+                    layoutId="activeTabIndicator"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-cyan-500 rounded-full"
+                  />
+                )}
+              </motion.button>
             ))}
-          </nav>
+          </motion.div>
 
-          {/* Tab content */}
-          {activeTab === "find" && (
-            <FindEmailCard
-              finderForm={finderForm}
-              setFinderForm={setFinderForm}
-              finderLoading={finderLoading}
-              finderResult={finderResult}
-              handleFindEmail={handleFindEmail}
-              getStatusIcon={getStatusIcon}
-              getStatusColor={getStatusColor}
-              showToast={showToast}
-            />
-          )}
-          {activeTab === "verify" && (
-            <VerifyEmailPlaceholder
-              verifierEmail={verifierEmail}
-              setVerifierEmail={setVerifierEmail}
-              verifierLoading={verifierLoading}
-              verifierResult={verifierResult}
-              handleVerifyEmail={handleVerifyEmail}
-              getStatusIcon={getStatusIcon}
-              getStatusColor={getStatusColor}
-            />
-          )}
-          {activeTab === "bulk" && (
-            <BulkVerifyPlaceholder
-              bulkEmails={bulkEmails}
-              setBulkEmails={setBulkEmails}
-              bulkLoading={bulkLoading}
-              bulkResults={bulkResults}
-              handleBulkVerify={handleBulkVerify}
-              getStatusIcon={getStatusIcon}
-              getStatusColor={getStatusColor}
-              showToast={showToast}
-            />
-          )}
-        </main>
-      </div>
+          {/* Tab Content */}
+          <AnimatePresence mode="wait">
+            {activeTab === "find" && (
+              <motion.div
+                key="find"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="grid gap-6 lg:grid-cols-[2fr,1fr]"
+              >
+                <FormCard
+                  title="Find Email Address"
+                  description="Use first name, last name, and company domain. We'll try common patterns and optionally validate via SMTP."
+                  icon={Search}
+                >
+                  <form onSubmit={(e) => { e.preventDefault(); handleFindEmail(); }} className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <Input
+                        label="First Name"
+                        icon={User}
+                        required
+                        value={finderForm.firstName}
+                        onChange={(e) => setFinderForm({ ...finderForm, firstName: e.target.value })}
+                        placeholder="John"
+                      />
+                      <Input
+                        label="Last Name"
+                        icon={User}
+                        required
+                        value={finderForm.lastName}
+                        onChange={(e) => setFinderForm({ ...finderForm, lastName: e.target.value })}
+                        placeholder="Doe"
+                      />
+                      <Input
+                        label="Company Domain"
+                        icon={Globe}
+                        required
+                        value={finderForm.domain}
+                        onChange={(e) => setFinderForm({ ...finderForm, domain: e.target.value })}
+                        placeholder="example.com"
+                      />
+                    </div>
+                    <Checkbox
+                      label="Skip SMTP check"
+                      description="Faster but less accurate"
+                      checked={finderForm.skipSmtp}
+                      onChange={(e) => setFinderForm({ ...finderForm, skipSmtp: e.target.checked })}
+                    />
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        type="submit"
+                        disabled={finderLoading}
+                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
+                      >
+                        {finderLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Finding...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="w-4 h-4 mr-2" />
+                            Find Email
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
+                  </form>
+
+                  {/* Results */}
+                  {finderResult && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 space-y-4"
+                    >
+                      {finderResult.email ? (
+                        <>
+                          <div className="flex items-center gap-3">
+                            {getStatusIcon(finderResult.status || "unknown")}
+                            <div className="flex-1">
+                              <div className="text-slate-900 dark:text-slate-50 font-semibold text-base">
+                                {finderResult.email}
+                              </div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                Confidence: {((finderResult.confidence || 0) * 100).toFixed(0)}%
+                              </div>
+                            </div>
+                          </div>
+                          <div className={`p-4 rounded-xl border text-sm ${getStatusColor(finderResult.status || "unknown")}`}>
+                            <div className="font-semibold capitalize mb-1">
+                              {finderResult.status || "unknown"}
+                            </div>
+                            <div className="text-xs opacity-80">{finderResult.reason || ""}</div>
+                          </div>
+                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                            <Button
+                              onClick={async () => {
+                                try {
+                                  const result = await apiClient.saveEmailToLeads({
+                                    first_name: finderForm.firstName,
+                                    last_name: finderForm.lastName,
+                                    email: finderResult.email!,
+                                    domain: finderForm.domain,
+                                    confidence: finderResult.confidence || undefined,
+                                  });
+                                  showToast({
+                                    type: "success",
+                                    title: "Saved to leads",
+                                    message: `Lead created with ID: ${result.lead_id}`,
+                                  });
+                                } catch (error: any) {
+                                  showToast({
+                                    type: "error",
+                                    title: "Error",
+                                    message: error?.response?.data?.detail || "Failed to save lead",
+                                  });
+                                }
+                              }}
+                              className="w-full bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 text-white shadow-lg"
+                            >
+                              <Save className="w-4 h-4 mr-2" />
+                              Save to Leads
+                            </Button>
+                          </motion.div>
+                        </>
+                      ) : (
+                        <div className="text-slate-500 dark:text-slate-400 text-sm text-center py-4">
+                          No confident email match found. Try adjusting the search or enabling SMTP verification.
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </FormCard>
+
+                {/* Tips Card */}
+                <FormCard
+                  title="Tips for Better Matches"
+                  icon={Lightbulb}
+                  className="h-fit"
+                >
+                  <ul className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
+                    {[
+                      "Use the company's primary domain (not tracking or subdomains)",
+                      "Fill both first and last name for best pattern guesses",
+                      "Keep SMTP check enabled when quality matters more than speed",
+                      "Save successful results as templates for similar companies",
+                    ].map((tip, idx) => (
+                      <motion.li
+                        key={idx}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                        className="flex items-start gap-2"
+                      >
+                        <span className="text-cyan-500 mt-0.5">•</span>
+                        <span>{tip}</span>
+                      </motion.li>
+                    ))}
+                  </ul>
+                </FormCard>
+              </motion.div>
+            )}
+
+            {activeTab === "verify" && (
+              <motion.div
+                key="verify"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+              >
+                <FormCard
+                  title="Verify Email Address"
+                  description="Check if an email address is valid, deliverable, and safe to send to."
+                  icon={CheckCircle2}
+                >
+                  <form onSubmit={(e) => { e.preventDefault(); handleVerifyEmail(); }} className="space-y-4">
+                    <Input
+                      label="Email Address"
+                      icon={Mail}
+                      type="email"
+                      required
+                      value={verifierEmail}
+                      onChange={(e) => setVerifierEmail(e.target.value)}
+                      placeholder="john.doe@example.com"
+                    />
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        type="submit"
+                        disabled={verifierLoading}
+                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
+                      >
+                        {verifierLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Verifying...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Verify Email
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
+                  </form>
+
+                  {verifierResult && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 space-y-4"
+                    >
+                      <div className="flex items-center gap-3">
+                        {getStatusIcon(verifierResult.status)}
+                        <div>
+                          <div className="text-slate-900 dark:text-slate-50 font-semibold text-base">
+                            {verifierResult.email}
+                          </div>
+                          {verifierResult.cached && (
+                            <div className="text-xs text-slate-500 dark:text-slate-400">(Cached result)</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className={`p-4 rounded-xl border text-sm ${getStatusColor(verifierResult.status)}`}>
+                        <div className="font-semibold capitalize mb-1">{verifierResult.status}</div>
+                        <div className="text-xs opacity-80 mb-1">{verifierResult.reason}</div>
+                        {verifierResult.confidence !== null && (
+                          <div className="text-xs opacity-80">
+                            Confidence: {(verifierResult.confidence * 100).toFixed(0)}%
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </FormCard>
+              </motion.div>
+            )}
+
+            {activeTab === "bulk" && (
+              <motion.div
+                key="bulk"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+              >
+                <FormCard
+                  title="Bulk Email Verification"
+                  description="Verify up to 100 email addresses at once (one per line)."
+                  icon={Sparkles}
+                >
+                  <form onSubmit={(e) => { e.preventDefault(); handleBulkVerify(); }} className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        Email Addresses ({emailCount} entered, max 100)
+                      </span>
+                      {bulkResults.length > 0 && (
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(
+                                `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002"}/api/email-verifier/export/csv`
+                              );
+                              const blob = await response.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = `email_verifications_${new Date().toISOString().split("T")[0]}.csv`;
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              window.URL.revokeObjectURL(url);
+                              showToast({
+                                type: "success",
+                                title: "Export successful",
+                                message: "Verification results downloaded",
+                              });
+                            } catch (error: any) {
+                              showToast({
+                                type: "error",
+                                title: "Export failed",
+                                message: "Failed to export results",
+                              });
+                            }
+                          }}
+                          className="text-sm font-semibold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 flex items-center gap-2"
+                        >
+                          <Download className="w-4 h-4" />
+                          Export CSV
+                        </motion.button>
+                      )}
+                    </div>
+                    <Textarea
+                      value={bulkEmails}
+                      onChange={(e) => setBulkEmails(e.target.value)}
+                      rows={10}
+                      placeholder="john.doe@example.com&#10;jane.smith@example.com&#10;..."
+                      helperText={`${emailCount} emails entered (max 100)`}
+                    />
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        type="submit"
+                        disabled={bulkLoading || emailCount === 0}
+                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
+                      >
+                        {bulkLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Verifying...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Verify All ({emailCount} emails)
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
+                  </form>
+
+                  {bulkResults.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800"
+                    >
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50 mb-4">
+                        Results ({bulkResults.length})
+                      </h4>
+                      <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                        {bulkResults.map((result: any, idx: number) => (
+                          <motion.div
+                            key={idx}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.02 }}
+                            className="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 hover:bg-slate-100/50 dark:hover:bg-slate-900/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3 flex-1">
+                              {getStatusIcon(result.status)}
+                              <div className="flex-1">
+                                <div className="text-slate-900 dark:text-slate-50 font-semibold text-sm">
+                                  {result.email}
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                  {result.reason}
+                                </div>
+                              </div>
+                            </div>
+                            <div className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${getStatusColor(result.status)}`}>
+                              {result.status}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </FormCard>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </main>
+    </div>
   );
 }

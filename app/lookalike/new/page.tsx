@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { FormCard } from "@/components/ui/FormCard";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
@@ -10,7 +14,6 @@ import {
   Sparkles,
   Layers,
   List as ListIcon,
-  ArrowLeft,
   Loader2,
   AlertCircle,
   CheckCircle2,
@@ -64,7 +67,6 @@ export default function NewLookalikeJobPage() {
     setLoading(true);
     setError(null);
 
-    // Validate source selection
     if (!formData.sourceType) {
       setError("Please select a source (segment or list)");
       setLoading(false);
@@ -119,265 +121,293 @@ export default function NewLookalikeJobPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-800">
-        <div className="mx-auto max-w-4xl px-4 py-4">
-          <button
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 mb-4 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Lookalike Jobs
-          </button>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50 flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-indigo-500" />
-              New Lookalike Job
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Find similar leads based on your best-performing segments or lists
-            </p>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <PageHeader
+        title="New Lookalike Job"
+        description="Find similar leads based on your best-performing segments or lists"
+        backUrl="/lookalike/jobs"
+        icon={Sparkles}
+      />
 
-      <main className="mx-auto max-w-4xl px-4 pt-6 pb-10">
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 px-4 py-3 flex items-start gap-3"
-          >
-            <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
-            <div>
-              <strong className="font-semibold">Error:</strong> {error}
-            </div>
-          </motion.div>
-        )}
+      <main className="max-w-5xl mx-auto px-6 pt-6 pb-12">
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-6 rounded-2xl bg-gradient-to-r from-rose-50 to-red-50 dark:from-rose-950/30 dark:to-red-950/30 border border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-400 px-5 py-4 flex items-start gap-3 shadow-lg"
+            >
+              <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+              <div>
+                <strong className="font-semibold">Error:</strong> {error}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <motion.form
           onSubmit={handleSubmit}
           className="space-y-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.4 }}
         >
           {/* Source Selection */}
-          <section className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 space-y-6">
-            <div className="flex items-center gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/30">
-                <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Source Selection</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Choose a segment or list to find similar leads</p>
-              </div>
+          <FormCard
+            title="Source Selection"
+            description="Choose a segment or list to find similar leads"
+            icon={Sparkles}
+            delay={0.1}
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              {[
+                { key: "segment" as SourceType, label: "Segment", icon: Layers, description: "Use a segment as the source" },
+                { key: "list" as SourceType, label: "List", icon: ListIcon, description: "Use a list as the source" },
+              ].map((option) => (
+                <motion.div
+                  key={option.key}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  onClick={() => setFormData({
+                    ...formData,
+                    sourceType: option.key,
+                    sourceSegmentId: option.key === "segment" ? formData.sourceSegmentId : null,
+                    sourceListId: option.key === "list" ? formData.sourceListId : null,
+                  })}
+                  className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${
+                    formData.sourceType === option.key
+                      ? "border-cyan-500 bg-cyan-50/50 dark:bg-cyan-950/20 shadow-lg"
+                      : "border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 hover:border-cyan-300 dark:hover:border-cyan-700"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${
+                      formData.sourceType === option.key
+                        ? "bg-cyan-500 text-white"
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                    }`}>
+                      <option.icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <input
+                          type="radio"
+                          name="sourceType"
+                          checked={formData.sourceType === option.key}
+                          onChange={() => setFormData({
+                            ...formData,
+                            sourceType: option.key,
+                            sourceSegmentId: option.key === "segment" ? formData.sourceSegmentId : null,
+                            sourceListId: option.key === "list" ? formData.sourceListId : null,
+                          })}
+                          className="w-4 h-4 text-cyan-600 focus:ring-cyan-500"
+                        />
+                        <span className="font-semibold text-slate-900 dark:text-slate-50">{option.label}</span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">{option.description}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
             </div>
 
-            <div className="space-y-4">
-              {/* Source Type Selection */}
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                  <input
-                    type="radio"
-                    name="sourceType"
-                    checked={formData.sourceType === "segment"}
-                    onChange={() => setFormData({ ...formData, sourceType: "segment", sourceListId: null })}
-                    className="mt-0.5 w-5 h-5 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                      <span className="text-sm font-medium text-slate-900 dark:text-slate-50">Segment</span>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Use a segment as the source</p>
-                  </div>
-                </label>
-
-                <label className="group relative flex items-start gap-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-all">
-                  <input
-                    type="radio"
-                    name="sourceType"
-                    checked={formData.sourceType === "list"}
-                    onChange={() => setFormData({ ...formData, sourceType: "list", sourceSegmentId: null })}
-                    className="mt-0.5 w-5 h-5 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <ListIcon className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                      <span className="text-sm font-medium text-slate-900 dark:text-slate-50">List</span>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Use a list as the source</p>
-                  </div>
-                </label>
-              </div>
-
-              {/* Segment Selection */}
+            <AnimatePresence mode="wait">
               {formData.sourceType === "segment" && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Select Segment *
-                  </label>
+                <motion.div
+                  key="segment"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-4"
+                >
                   {loadingSources ? (
-                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/30">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Loading segments...
                     </div>
                   ) : segments.length === 0 ? (
-                    <div className="text-sm text-slate-500 dark:text-slate-400 p-4 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                      No segments available. <button type="button" onClick={() => router.push("/segments/new")} className="text-indigo-600 dark:text-indigo-400 hover:underline">Create one first</button>
+                    <div className="text-sm text-slate-600 dark:text-slate-400 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700">
+                      No segments available.{" "}
+                      <button
+                        type="button"
+                        onClick={() => router.push("/segments/new")}
+                        className="text-cyan-600 dark:text-cyan-400 hover:underline font-semibold"
+                      >
+                        Create one first
+                      </button>
                     </div>
                   ) : (
-                    <select
+                    <Select
+                      label="Select Segment"
                       required
-                      value={formData.sourceSegmentId || ""}
+                      value={formData.sourceSegmentId?.toString() || ""}
                       onChange={(e) =>
                         setFormData({ ...formData, sourceSegmentId: parseInt(e.target.value) || null })
                       }
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                    >
-                      <option value="">-- Select a segment --</option>
-                      {segments.map((segment) => (
-                        <option key={segment.id} value={segment.id}>
-                          {segment.name}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: "", label: "-- Select a segment --" },
+                        ...segments.map((segment) => ({
+                          value: segment.id.toString(),
+                          label: segment.name,
+                        })),
+                      ]}
+                    />
                   )}
-                </div>
+                </motion.div>
               )}
 
-              {/* List Selection */}
               {formData.sourceType === "list" && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Select List *
-                  </label>
+                <motion.div
+                  key="list"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-4"
+                >
                   {loadingSources ? (
-                    <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/30">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Loading lists...
                     </div>
                   ) : lists.length === 0 ? (
-                    <div className="text-sm text-slate-500 dark:text-slate-400 p-4 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                      No lists available. <button type="button" onClick={() => router.push("/lists/new")} className="text-indigo-600 dark:text-indigo-400 hover:underline">Create one first</button>
+                    <div className="text-sm text-slate-600 dark:text-slate-400 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700">
+                      No lists available.{" "}
+                      <button
+                        type="button"
+                        onClick={() => router.push("/lists/new")}
+                        className="text-cyan-600 dark:text-cyan-400 hover:underline font-semibold"
+                      >
+                        Create one first
+                      </button>
                     </div>
                   ) : (
-                    <select
+                    <Select
+                      label="Select List"
                       required
-                      value={formData.sourceListId || ""}
+                      value={formData.sourceListId?.toString() || ""}
                       onChange={(e) =>
                         setFormData({ ...formData, sourceListId: parseInt(e.target.value) || null })
                       }
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                    >
-                      <option value="">-- Select a list --</option>
-                      {lists.map((list) => (
-                        <option key={list.id} value={list.id}>
-                          {list.name} ({list.total_leads} leads)
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: "", label: "-- Select a list --" },
+                        ...lists.map((list) => ({
+                          value: list.id.toString(),
+                          label: `${list.name} (${list.total_leads} leads)`,
+                        })),
+                      ]}
+                    />
                   )}
-                </div>
+                </motion.div>
               )}
-            </div>
-          </section>
+            </AnimatePresence>
+          </FormCard>
 
           {/* Job Settings */}
-          <section className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-6 space-y-6">
-            <div className="flex items-center gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <div className="p-2 rounded-lg bg-cyan-50 dark:bg-cyan-950/30">
-                <Settings className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Job Settings</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Configure similarity threshold and result limits</p>
-              </div>
-            </div>
-
+          <FormCard
+            title="Job Settings"
+            description="Configure similarity threshold and result limits"
+            icon={Settings}
+            delay={0.2}
+          >
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Minimum Similarity Score
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={formData.minScore}
-                  onChange={(e) =>
-                    setFormData({ ...formData, minScore: parseFloat(e.target.value) || 0.7 })
-                  }
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                />
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Only include leads with similarity score ≥ {formData.minScore} (0.0 - 1.0)
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Max Results
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="5000"
-                  value={formData.maxResults}
-                  onChange={(e) =>
-                    setFormData({ ...formData, maxResults: parseInt(e.target.value) || 1000 })
-                  }
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
-                />
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Maximum number of lookalike leads to find (1 - 5000)
-                </p>
-              </div>
+              <Input
+                label="Minimum Similarity Score"
+                type="number"
+                min={0}
+                max={1}
+                step={0.1}
+                value={formData.minScore}
+                onChange={(e) =>
+                  setFormData({ ...formData, minScore: parseFloat(e.target.value) || 0.7 })
+                }
+                helperText={`Only include leads with similarity score ≥ ${formData.minScore} (0.0 - 1.0)`}
+              />
+              <Input
+                label="Max Results"
+                type="number"
+                min={1}
+                max={5000}
+                value={formData.maxResults}
+                onChange={(e) =>
+                  setFormData({ ...formData, maxResults: parseInt(e.target.value) || 1000 })
+                }
+                helperText="Maximum number of lookalike leads to find (1 - 5000)"
+              />
             </div>
-          </section>
+          </FormCard>
 
           {/* Info Section */}
-          <section className="rounded-xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 p-4">
-            <div className="flex items-start gap-3">
-              <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-indigo-900 dark:text-indigo-200">
-                <p className="font-semibold mb-1">How it works:</p>
-                <ul className="list-disc list-inside space-y-1 text-xs text-indigo-800 dark:text-indigo-300">
-                  <li>AI analyzes patterns from your selected source (industry, size, tech, location)</li>
-                  <li>Finds leads with similar characteristics across your workspace</li>
-                  <li>Ranks results by similarity score (higher = more similar)</li>
-                  <li>Results are saved and can be added to segments or lists</li>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="rounded-3xl glass border border-cyan-200/50 dark:border-cyan-800/50 bg-gradient-to-br from-cyan-50/50 to-blue-50/50 dark:from-cyan-950/20 dark:to-blue-950/20 p-6 shadow-xl"
+          >
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex-shrink-0">
+                <TrendingUp className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-slate-900 dark:text-slate-50 mb-2 flex items-center gap-2">
+                  How it works
+                </h3>
+                <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                  {[
+                    "AI analyzes patterns from your selected source (industry, size, tech, location)",
+                    "Finds leads with similar characteristics across your workspace",
+                    "Ranks results by similarity score (higher = more similar)",
+                    "Results are saved and can be added to segments or lists",
+                  ].map((item, idx) => (
+                    <motion.li
+                      key={idx}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.3 + idx * 0.1 }}
+                      className="flex items-start gap-2"
+                    >
+                      <span className="text-cyan-500 mt-0.5">•</span>
+                      <span>{item}</span>
+                    </motion.li>
+                  ))}
                 </ul>
               </div>
             </div>
-          </section>
+          </motion.div>
 
           {/* Submit Button */}
-          <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-800">
-            <Button
-              type="submit"
-              disabled={loading || !formData.sourceType || loadingSources}
-              className="bg-indigo-500 hover:bg-indigo-400 text-white dark:text-slate-950 font-semibold min-w-[140px]"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Create Job
-                </>
-              )}
-            </Button>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="flex justify-end pt-4"
+          >
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button
+                type="submit"
+                disabled={loading || !formData.sourceType || loadingSources}
+                className="bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-500 hover:from-cyan-400 hover:via-blue-400 hover:to-cyan-400 text-white shadow-xl shadow-cyan-500/25 dark:shadow-cyan-500/40 text-base font-semibold px-8 py-6 min-w-[180px] disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
+              >
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                  animate={{ x: ["-100%", "100%"] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                />
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin relative z-10" />
+                    <span className="relative z-10">Creating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5 mr-2 relative z-10" />
+                    <span className="relative z-10">Create Lookalike Job</span>
+                  </>
+                )}
+              </Button>
+            </motion.div>
+          </motion.div>
         </motion.form>
       </main>
     </div>
   );
 }
-

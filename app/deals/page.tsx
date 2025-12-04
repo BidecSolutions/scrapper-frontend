@@ -5,7 +5,10 @@ import { apiClient, type SavedView } from "@/lib/api";
 import type { Deal, DealStage } from "@/types/deals";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Plus, ChevronDown } from "lucide-react";
+import { Plus, ChevronDown, Briefcase } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/Select";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { SavedViewsBar } from "@/components/saved-views/SavedViewsBar";
 
 const STAGES: DealStage[] = [
@@ -37,11 +40,9 @@ export default function DealsPipelinePage() {
   async function load(customFilters?: Record<string, any>) {
     setLoading(true);
     try {
-      // Load all deals without stage filter to show complete pipeline
       const res = await apiClient.getDeals({
         page_size: 1000,
         ...customFilters,
-        // Don't filter by stage - we want all deals to show in their respective stages
       });
       setDeals(res.items);
     } catch (error) {
@@ -67,15 +68,6 @@ export default function DealsPipelinePage() {
     return acc;
   }, {} as Record<DealStage, Deal[]>);
 
-  // async function handleStageChange(dealId: number, newStage: DealStage) {
-  //   try {
-      // const updated = await apiClient?.updateDeal(dealId, { stage: newStage });
-  //     setDeals((prev) => prev.map((d) => (d.id === dealId ? updated : d)));
-  //   } catch (err) {
-  //     console.error("Error updating deal stage:", err);
-  //   }
-  // }
-
   function formatCurrency(value: number | null | undefined, currency: string = "USD"): string {
     if (!value) return "—";
     return new Intl.NumberFormat("en-US", {
@@ -93,132 +85,134 @@ export default function DealsPipelinePage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur border-b border-slate-800">
-          <div className="px-6 py-4 flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
-                Deals Pipeline
-              </h1>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Drag deals between stages to update progress.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <select
-                  value={ownerFilter}
-                  onChange={(e) => setOwnerFilter(e.target.value as "all" | "mine")}
-                  className="appearance-none bg-slate-900 border border-slate-700 text-xs text-slate-200 px-4 py-2 pr-8 rounded-lg hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer"
-                >
-                  <option value="all">All deals</option>
-                  <option value="mine">My deals</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
-              <button
+    <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <PageHeader
+        title="Deals Pipeline"
+        description="Drag deals between stages to update progress"
+        icon={Briefcase}
+        action={
+          <div className="flex items-center gap-3">
+            <Select
+              value={ownerFilter}
+              onChange={(e) => setOwnerFilter(e.target.value as "all" | "mine")}
+              options={[
+                { value: "all", label: "All deals" },
+                { value: "mine", label: "My deals" },
+              ]}
+              className="w-32"
+            />
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Button
                 onClick={() => router.push("/deals/new")}
-                className="inline-flex items-center rounded-lg bg-indigo-500 hover:bg-indigo-400 text-xs font-medium px-4 py-2 shadow-sm transition-colors"
+                className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg shadow-cyan-500/25"
               >
-                <Plus className="w-4 h-4 mr-1.5" />
+                <Plus className="w-4 h-4 mr-2" />
                 New Deal
-              </button>
-            </div>
+              </Button>
+            </motion.div>
           </div>
-        </header>
+        }
+      />
 
-        {/* Columns */}
-        <main className="flex-1 overflow-hidden px-6 pt-6 pb-10">
-          {loading ? (
-            <div className="text-center py-12 text-slate-400">
-              Loading deals...
-            </div>
-          ) : (
-            <div className="flex gap-4 overflow-x-auto pb-3 h-full no-scrollbar">
-              {STAGES.map((stage) => {
-                const stageDeals = dealsByStage[stage];
-                const totalValue = stageDeals.reduce(
-                  (sum, d) => sum + (d.value || 0),
-                  0
-                );
+      <main className="flex-1 overflow-hidden px-6 pt-6 pb-10">
+        <div className="mb-4">
+          <SavedViewsBar
+            pageType="deals"
+            currentFilters={{
+              owner: ownerFilter !== "all" ? ownerFilter : undefined,
+            }}
+            onApplyView={handleApplyView}
+          />
+        </div>
 
-                return (
-                  <motion.section
-                    key={stage}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="flex-shrink-0 w-72 bg-slate-900/80 border border-slate-800 rounded-2xl p-3 flex flex-col h-fit"
-                  >
-                    {/* Column header */}
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <div>
-                        <h2 className="text-sm font-semibold text-slate-100">
-                          {STAGE_LABELS[stage]}
-                        </h2>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          {stageDeals.length} deal{stageDeals.length !== 1 ? "s" : ""}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase tracking-wide text-slate-400">
-                          Total
-                        </p>
-                        <p className="text-xs font-semibold text-slate-100">
-                          {totalValue > 0 ? formatCurrency(totalValue) : "—"}
-                        </p>
-                      </div>
+        {loading ? (
+          <div className="text-center py-20">
+            <div className="inline-block w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-sm text-slate-500 dark:text-slate-400">Loading deals...</p>
+          </div>
+        ) : (
+          <div className="flex gap-4 overflow-x-auto pb-3 h-full custom-scrollbar">
+            {STAGES.map((stage, index) => {
+              const stageDeals = dealsByStage[stage];
+              const totalValue = stageDeals.reduce(
+                (sum, d) => sum + (d.value || 0),
+                0
+              );
+
+              return (
+                <motion.section
+                  key={stage}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                  className="flex-shrink-0 w-72 rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-4 flex flex-col h-fit shadow-xl"
+                >
+                  {/* Column header */}
+                  <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-200/50 dark:border-slate-800/50">
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900 dark:text-slate-50">
+                        {STAGE_LABELS[stage]}
+                      </h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {stageDeals.length} deal{stageDeals.length !== 1 ? "s" : ""}
+                      </p>
                     </div>
-
-                    {/* Deals list */}
-                    <div className="mt-1 space-y-2 flex-1 min-h-[120px] max-h-[calc(100vh-280px)] overflow-y-auto no-scrollbar">
-                      {stageDeals.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/60 text-[11px] text-slate-400 py-8 px-4">
-                          <span>No deals</span>
-                          <span className="mt-1 text-[10px]">
-                            Drop deals here
-                          </span>
-                        </div>
-                      ) : (
-                        stageDeals.map((deal) => (
-                          <motion.article
-                            key={deal.id}
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ duration: 0.2 }}
-                            className="rounded-xl bg-slate-900 border border-slate-800 px-3 py-2.5 shadow-sm cursor-pointer hover:border-indigo-400 hover:bg-slate-900/90 transition-all duration-200 group"
-                            onClick={() => router.push(`/deals/${deal.id}`)}
-                          >
-                            <div className="flex justify-between items-start gap-2 mb-1.5">
-                              <h3 className="text-xs font-semibold text-slate-100 truncate flex-1 group-hover:text-indigo-300 transition-colors">
-                                {deal.name}
-                              </h3>
-                              {deal.value && (
-                                <span className="text-[11px] font-semibold text-emerald-300 whitespace-nowrap">
-                                  {formatCurrency(deal.value, deal.currency)}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2">
-                              <span>{getDaysOpen(deal)}d ago</span>
-                              {deal.owner_user_id && (
-                                <div className="w-5 h-5 rounded-full bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-[10px] font-medium text-indigo-300">
-                                  {deal.owner_user_id % 10}
-                                </div>
-                              )}
-                            </div>
-                          </motion.article>
-                        ))
-                      )}
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Total
+                      </p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-slate-50">
+                        {totalValue > 0 ? formatCurrency(totalValue) : "—"}
+                      </p>
                     </div>
-                  </motion.section>
-                );
-              })}
-            </div>
-          )}
-        </main>
-      </div>
+                  </div>
+
+                  {/* Deals list */}
+                  <div className="mt-1 space-y-2 flex-1 min-h-[120px] max-h-[calc(100vh-280px)] overflow-y-auto custom-scrollbar">
+                    {stageDeals.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 text-xs text-slate-500 dark:text-slate-400 py-8 px-4">
+                        <span>No deals</span>
+                        <span className="mt-1 text-[10px]">Drop deals here</span>
+                      </div>
+                    ) : (
+                      stageDeals.map((deal, dealIndex) => (
+                        <motion.article
+                          key={deal.id}
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.2, delay: dealIndex * 0.03 }}
+                          whileHover={{ scale: 1.02, y: -2 }}
+                          className="rounded-xl glass border border-slate-200/50 dark:border-slate-800/50 px-3 py-2.5 shadow-lg cursor-pointer hover:border-cyan-400 dark:hover:border-cyan-600 hover:shadow-xl transition-all duration-200 group"
+                          onClick={() => router.push(`/deals/${deal.id}`)}
+                        >
+                          <div className="flex justify-between items-start gap-2 mb-1.5">
+                            <h3 className="text-xs font-semibold text-slate-900 dark:text-slate-50 truncate flex-1 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                              {deal.name}
+                            </h3>
+                            {deal.value && (
+                              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                                {formatCurrency(deal.value, deal.currency)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mt-2">
+                            <span>{getDaysOpen(deal)}d ago</span>
+                            {deal.owner_user_id && (
+                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 border border-cyan-400/30 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
+                                {deal.owner_user_id % 10}
+                              </div>
+                            )}
+                          </div>
+                        </motion.article>
+                      ))
+                    )}
+                  </div>
+                </motion.section>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
