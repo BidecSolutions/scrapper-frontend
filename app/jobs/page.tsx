@@ -176,35 +176,58 @@ export default function JobsPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur border-b border-slate-800">
-          <div className="px-6 py-4 flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-50">Jobs</h1>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Track scraping & AI enrichment runs in real time.
+    <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+        {/* Modern Animated Header */}
+        <motion.header
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="sticky top-0 z-20 glass border-b border-slate-200/50 dark:border-slate-800/50 shadow-lg"
+        >
+          <div className="px-6 py-5 flex items-center justify-between gap-4">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-50 dark:via-slate-100 dark:to-slate-50 bg-clip-text text-transparent">
+                Jobs
+              </h1>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1.5">
+                Track scraping & AI enrichment runs in real time
               </p>
-            </div>
+            </motion.div>
 
-            <Link href="/jobs/new">
-              <button className="inline-flex items-center rounded-lg bg-cyan-500 hover:bg-cyan-400 text-xs font-medium px-4 py-2 shadow-sm transition-colors">
-                <Plus className="w-4 h-4 mr-1.5" />
-                New Job
-              </button>
-            </Link>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+            >
+              <Link href="/jobs/new">
+                <motion.button
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="inline-flex items-center rounded-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-500 hover:from-cyan-400 hover:via-blue-400 hover:to-cyan-400 text-sm font-semibold px-6 py-3 shadow-xl shadow-cyan-500/25 dark:shadow-cyan-500/40 transition-all text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Job
+                </motion.button>
+              </Link>
+            </motion.div>
           </div>
-        </header>
+        </motion.header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto px-6 pt-6 pb-10 space-y-5">
-          {/* Stats row */}
-          <section className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <MetricCard label="Total jobs" value={stats.total} />
-            <MetricCard label="Running" value={stats.running} tone="info" />
-            <MetricCard label="Completed" value={stats.completed} tone="success" />
-            <MetricCard label="Failed" value={stats.failed} tone="danger" />
-          </section>
+        <main className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar px-6 pt-8 pb-12">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {/* Stats row - Enhanced */}
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+            >
+              <MetricCard label="Total jobs" value={stats.total} />
+              <MetricCard label="Running" value={stats.running} tone="info" />
+              <MetricCard label="Completed" value={stats.completed} tone="success" />
+              <MetricCard label="Failed" value={stats.failed} tone="danger" />
+            </motion.section>
 
           {/* Saved Views Bar */}
           <SavedViewsBar
@@ -252,8 +275,13 @@ export default function JobsPage() {
             </div>
           </section>
 
-          {/* Jobs table */}
-          <section className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden">
+          {/* Jobs table - Modern Design */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 overflow-hidden shadow-2xl"
+          >
             <div className="overflow-x-auto">
               <table className="min-w-full text-xs">
                 <thead className="bg-slate-900">
@@ -332,7 +360,8 @@ export default function JobsPage() {
                 </tbody>
               </table>
             </div>
-          </section>
+          </motion.section>
+          </div>
         </main>
 
         {/* Command Palette */}

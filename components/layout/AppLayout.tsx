@@ -74,8 +74,9 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 overflow-hidden">
       {/* Sidebar */}
-      <aside className="hidden md:flex w-64 flex-col border-r border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur">
-        <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+      <aside className="hidden md:flex w-64 flex-col border-r border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur overflow-hidden">
+        {/* Fixed Header */}
+        <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
           {organization?.logo_url ? (
             <img
               src={organization.logo_url.startsWith('http') 
@@ -99,7 +100,8 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        {/* Scrollable Navigation */}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar min-h-0">
           <NavItem
             href="/dashboard"
             label="Dashboard"
@@ -226,7 +228,8 @@ export function AppLayout({ children }: AppLayoutProps) {
           )}
         </nav>
 
-        <div className="px-4 py-4 border-t border-slate-200 dark:border-slate-800">
+        {/* Fixed Footer */}
+        <div className="px-4 py-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
           <Link href="/jobs/new" className="block">
             <Button 
               type="button"
