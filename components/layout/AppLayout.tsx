@@ -22,6 +22,8 @@ import {
   Activity,
   Sparkles,
   GitMerge,
+  Layers,
+  List as ListIcon,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { NotificationsBell } from "./NotificationsBell";
@@ -114,6 +116,18 @@ export function AppLayout({ children }: AppLayoutProps) {
             label="Leads"
             icon={Users}
             active={activeSection === "leads"}
+          />
+          <NavItem
+            href="/segments"
+            label="Segments"
+            icon={Layers}
+            active={pathname?.startsWith("/segments")}
+          />
+          <NavItem
+            href="/lists"
+            label="Lists"
+            icon={ListIcon}
+            active={pathname?.startsWith("/lists")}
           />
           <NavItem
             href="/duplicates"

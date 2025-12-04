@@ -795,6 +795,193 @@ class APIClient {
     const response = await this.client.patch(`/api/deals/${dealId}`, updates);
     return response.data;
   }
+
+  // Segments endpoints
+  async getSegments(): Promise<any[]> {
+    const response = await this.client.get("/api/segments");
+    return response.data;
+  }
+
+  async getSegment(segmentId: number): Promise<any> {
+    const response = await this.client.get(`/api/segments/${segmentId}`);
+    return response.data;
+  }
+
+  async createSegment(data: {
+    name: string;
+    description?: string;
+    filter_json: Record<string, any>;
+  }): Promise<any> {
+    const response = await this.client.post("/api/segments", data);
+    return response.data;
+  }
+
+  async updateSegment(segmentId: number, data: {
+    name?: string;
+    description?: string;
+    filter_json?: Record<string, any>;
+  }): Promise<any> {
+    const response = await this.client.put(`/api/segments/${segmentId}`, data);
+    return response.data;
+  }
+
+  async deleteSegment(segmentId: number): Promise<void> {
+    await this.client.delete(`/api/segments/${segmentId}`);
+  }
+
+  async getSegmentLeads(segmentId: number, limit?: number, offset?: number): Promise<{ total: number; leads: any[] }> {
+    const params = new URLSearchParams();
+    if (limit) params.append("limit", limit.toString());
+    if (offset) params.append("offset", offset.toString());
+    
+    const queryString = params.toString();
+    const url = `/api/segments/${segmentId}/leads${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  // Lists endpoints
+  async getLists(): Promise<any[]> {
+    const response = await this.client.get("/api/lists");
+    return response.data;
+  }
+
+  async createList(data: {
+    name: string;
+    description?: string;
+    is_campaign_ready?: boolean;
+  }): Promise<any> {
+    const response = await this.client.post("/api/lists", data);
+    return response.data;
+  }
+
+  async updateList(listId: number, data: {
+    name?: string;
+    description?: string;
+    is_campaign_ready?: boolean;
+  }): Promise<any> {
+    const response = await this.client.put(`/api/lists/${listId}`, data);
+    return response.data;
+  }
+
+  async deleteList(listId: number): Promise<void> {
+    await this.client.delete(`/api/lists/${listId}`);
+  }
+
+  async addLeadToList(listId: number, leadId: number): Promise<any> {
+    const response = await this.client.post(`/api/lists/${listId}/leads/${leadId}`);
+    return response.data;
+  }
+
+  async removeLeadFromList(listId: number, leadId: number): Promise<any> {
+    const response = await this.client.delete(`/api/lists/${listId}/leads/${leadId}`);
+    return response.data;
+  }
+
+  // Workspaces endpoints
+  async getWorkspaces(): Promise<any[]> {
+    const response = await this.client.get("/api/workspaces");
+    return response.data;
+  }
+
+  async createWorkspace(data: {
+    name: string;
+    description?: string;
+  }): Promise<any> {
+    const response = await this.client.post("/api/workspaces", data);
+    return response.data;
+  }
+
+  async getWorkspaceMembers(workspaceId: number): Promise<any[]> {
+    const response = await this.client.get(`/api/workspaces/${workspaceId}/members`);
+    return response.data;
+  }
+
+  async inviteWorkspaceMember(workspaceId: number, email: string, role: string): Promise<any> {
+    const response = await this.client.post(`/api/workspaces/${workspaceId}/members/invite`, {
+      email,
+      role,
+    });
+    return response.data;
+  }
+
+  async updateWorkspaceMember(workspaceId: number, memberId: number, role: string): Promise<any> {
+    const response = await this.client.patch(`/api/workspaces/${workspaceId}/members/${memberId}`, {
+      role,
+    });
+    return response.data;
+  }
+
+  async removeWorkspaceMember(workspaceId: number, memberId: number): Promise<void> {
+    await this.client.delete(`/api/workspaces/${workspaceId}/members/${memberId}`);
+  }
+
+  async switchWorkspace(workspaceId: number): Promise<any> {
+    const response = await this.client.post(`/api/workspaces/${workspaceId}/switch`);
+    return response.data;
+  }
+
+  // Tasks & Notes endpoints
+  async getLeadNotes(leadId: number): Promise<any[]> {
+    const response = await this.client.get(`/api/leads/${leadId}/notes`);
+    return response.data;
+  }
+
+  async createLeadNote(leadId: number, content: string): Promise<any> {
+    const response = await this.client.post(`/api/leads/${leadId}/notes`, { content });
+    return response.data;
+  }
+
+  async getLeadTasks(leadId: number, statusFilter?: string): Promise<any[]> {
+    const params = statusFilter ? `?status_filter=${statusFilter}` : "";
+    const response = await this.client.get(`/api/leads/${leadId}/tasks${params}`);
+    return response.data;
+  }
+
+  async createLeadTask(leadId: number, data: {
+    title: string;
+    type?: string;
+    due_at?: string;
+    description?: string;
+    assigned_to_user_id?: number;
+  }): Promise<any> {
+    const response = await this.client.post(`/api/leads/${leadId}/tasks`, data);
+    return response.data;
+  }
+
+  async createTaskFromNBA(leadId: number): Promise<any> {
+    const response = await this.client.post(`/api/leads/${leadId}/tasks/from-nba`);
+    return response.data;
+  }
+
+  async updateTask(taskId: number, data: {
+    title?: string;
+    status?: string;
+    due_at?: string;
+    description?: string;
+    assigned_to_user_id?: number;
+  }): Promise<any> {
+    const response = await this.client.patch(`/api/tasks/${taskId}`, data);
+    return response.data;
+  }
+
+  async getTasks(params?: {
+    workspace_id?: number;
+    status_filter?: string;
+    assigned_to_user_id?: number;
+    due_filter?: string;
+  }): Promise<any[]> {
+    const queryParams = new URLSearchParams();
+    if (params?.workspace_id) queryParams.append("workspace_id", params.workspace_id.toString());
+    if (params?.status_filter) queryParams.append("status_filter", params.status_filter);
+    if (params?.assigned_to_user_id) queryParams.append("assigned_to_user_id", params.assigned_to_user_id.toString());
+    if (params?.due_filter) queryParams.append("due_filter", params.due_filter);
+    
+    const queryString = queryParams.toString();
+    const url = `/api/tasks${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url);
+    return response.data;
+  }
 }
 
 export const apiClient = new APIClient();
