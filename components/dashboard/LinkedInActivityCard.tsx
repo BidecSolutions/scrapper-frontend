@@ -53,14 +53,16 @@ export function LinkedInActivityCard() {
 
   return (
     <motion.div
-      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 px-5 py-5 shadow-sm"
+      className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl h-full"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex items-center gap-2.5 mb-5">
-        <BarChart3 className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">LinkedIn Capture Overview</h3>
+      <div className="flex items-center gap-2.5 mb-6">
+        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-cyan-500" />
+          LinkedIn Capture Overview
+        </h3>
       </div>
 
       <div className="space-y-5">

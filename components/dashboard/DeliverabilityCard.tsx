@@ -54,7 +54,7 @@ export function DeliverabilityCard() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-6 shadow-sm"
+      className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl h-full"
     >
       <div className="flex items-center justify-between mb-6">
         <div>

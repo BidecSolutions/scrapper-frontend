@@ -59,7 +59,7 @@ const colorMap = {
 
 export function ActivityFeed() {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 flex-1">
       {mockActivities.map((activity, index) => {
         const Icon = iconMap[activity.type];
         const colorClass = colorMap[activity.type];

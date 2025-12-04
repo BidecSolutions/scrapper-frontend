@@ -315,7 +315,7 @@ export default function DashboardPage() {
             <motion.div
               whileHover={{ scale: 1.01 }}
               transition={{ duration: 0.2 }}
-              className="lg:col-span-2 rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl"
+              className="lg:col-span-2 rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl h-full"
             >
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -354,7 +354,7 @@ export default function DashboardPage() {
             <motion.div
               whileHover={{ scale: 1.01 }}
               transition={{ duration: 0.2 }}
-              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl"
+              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl h-full flex flex-col"
             >
               <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2 mb-4">
                 <Zap className="w-5 h-5 text-cyan-500" />
@@ -373,7 +373,7 @@ export default function DashboardPage() {
             <motion.div
               whileHover={{ scale: 1.01 }}
               transition={{ duration: 0.2 }}
-              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl"
+              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl h-full flex flex-col"
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
@@ -397,7 +397,7 @@ export default function DashboardPage() {
             <motion.div
               whileHover={{ scale: 1.01 }}
               transition={{ duration: 0.2 }}
-              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl"
+              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl h-full flex flex-col"
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">

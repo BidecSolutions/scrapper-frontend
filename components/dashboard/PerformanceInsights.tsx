@@ -42,7 +42,7 @@ const typeStyles = {
 
 export function PerformanceInsights() {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 flex-1">
       {insights.map((insight, index) => {
         const Icon = insight.icon;
         return (

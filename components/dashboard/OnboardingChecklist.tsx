@@ -79,7 +79,7 @@ export function OnboardingChecklist() {
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 px-5 py-5 h-56 animate-pulse" />
+      <div className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 h-56 animate-pulse" />
     );
   }
 
@@ -89,13 +89,13 @@ export function OnboardingChecklist() {
 
   return (
     <motion.div
-      className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 px-5 py-5 shadow-sm"
+      className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl h-full"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">Getting Started</h3>
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Getting Started</h3>
         <span className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/30 px-2.5 py-1 rounded-full">
           {completedCount} / {items.length} completed
         </span>
