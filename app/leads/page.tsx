@@ -321,7 +321,7 @@ export default function LeadsPage() {
           {selectedLeads.size > 0 && (
             <BulkActionsToolbar
               selectedCount={selectedLeads.size}
-              onClearSelection={() => setSelectedLeads(new Set())}
+              onClear={() => setSelectedLeads(new Set())}
             />
           )}
 
