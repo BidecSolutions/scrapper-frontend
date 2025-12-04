@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button"; // Fixed: lowercase import for case-sensitive filesystems
 import { useToast } from "@/components/ui/Toast";
 import { apiClient, type SavedView } from "@/lib/api";
@@ -34,6 +35,7 @@ interface VerificationJob {
 }
 
 export default function VerificationPage() {
+  const router = useRouter();
   const { showToast } = useToast();
   const [jobs, setJobs] = useState<VerificationJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -360,11 +362,7 @@ export default function VerificationPage() {
                         <td className="px-4 py-3 text-right">
                           <button
                             onClick={() => {
-                              showToast({
-                                type: "info",
-                                title: "Job details",
-                                message: "Job detail page coming soon",
-                              });
+                              router.push(`/verification/${job.id}`);
                             }}
                             className="text-[11px] text-cyan-400 hover:text-cyan-300 font-medium"
                           >
