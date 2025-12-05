@@ -168,7 +168,6 @@ export default function NewTemplatePage() {
               />
               <Textarea
                 label="Description"
-                icon={AlignLeft}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Brief description of when and how to use this template..."
@@ -218,7 +217,6 @@ export default function NewTemplatePage() {
                 />
                 <Textarea
                   label="Email Body"
-                  icon={AlignLeft}
                   required
                   value={formData.body}
                   onChange={(e) => setFormData({ ...formData, body: e.target.value })}
