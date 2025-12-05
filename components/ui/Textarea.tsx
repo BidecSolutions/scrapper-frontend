@@ -21,9 +21,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             {props.required && <span className="text-rose-500 ml-1">*</span>}
           </label>
         )}
-        <motion.textarea
+        <textarea
           ref={ref}
-          whileFocus={{ scale: 1.01 }}
           className={cn(
             "w-full rounded-xl border transition-all duration-200 resize-none",
             "bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm",
@@ -32,6 +31,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             "placeholder:text-slate-400 dark:placeholder:text-slate-500",
             "focus:outline-none focus:ring-2 focus:ring-cyan-500/50 dark:focus:ring-cyan-400/50",
             "focus:border-cyan-500 dark:focus:border-cyan-400",
+            "focus:scale-[1.01]",
             "disabled:opacity-50 disabled:cursor-not-allowed",
             "px-4 py-3",
             error && "border-rose-500 dark:border-rose-500 focus:ring-rose-500/50",

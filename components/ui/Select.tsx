@@ -30,9 +30,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
               <Icon className="w-4 h-4 text-slate-400 dark:text-slate-500" />
             </div>
           )}
-          <motion.select
+          <select
             ref={ref}
-            whileFocus={{ scale: 1.01 }}
             className={cn(
               "w-full rounded-xl border transition-all duration-200 appearance-none",
               "bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm",
@@ -40,6 +39,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
               "text-slate-900 dark:text-slate-50",
               "focus:outline-none focus:ring-2 focus:ring-cyan-500/50 dark:focus:ring-cyan-400/50",
               "focus:border-cyan-500 dark:focus:border-cyan-400",
+              "focus:scale-[1.01]",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               Icon ? "pl-10 pr-10 py-3" : "px-4 py-3 pr-10",
               error && "border-rose-500 dark:border-rose-500 focus:ring-rose-500/50",
@@ -52,7 +52,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                 {option.label}
               </option>
             ))}
-          </motion.select>
+          </select>
           <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
             <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500" />
           </div>
