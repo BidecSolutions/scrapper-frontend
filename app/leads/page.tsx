@@ -394,7 +394,7 @@ export default function LeadsPage() {
                     >
                       <LeadRowComponent
                         lead={lead}
-                        onClick={() => handleLeadClick(lead)}
+                        onOpenDetail={handleLeadClick}
                         selected={selectedLeads.has(lead.id)}
                         onSelect={(selected) => {
                           const newSet = new Set(selectedLeads);
