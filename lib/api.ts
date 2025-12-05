@@ -379,6 +379,7 @@ class APIClient {
   async createLookalikeJob(data: {
     lead_ids?: number[];
     source_segment_id?: number;
+    source_list_id?: number;
     similarity_threshold?: number;
     min_score?: number;
     max_results?: number;
