@@ -76,14 +76,15 @@ export default function NewJobPage() {
 
       showToast({
         type: "success",
-        title: `Job "${formData.niche}${formData.location ? ` - ${formData.location}` : ""}" created`,
-        message: "View progress to see real-time updates",
+        title: `Job "${formData.niche}${formData.location ? ` - ${formData.location}` : ""}" started`,
+        message: "The job is running in the background. You'll be notified when it completes.",
         action: {
           label: "View progress →",
           onClick: () => router.push(`/jobs/${job.id}`),
         },
       });
 
+      // Redirect to job detail page to see live progress
       router.push(`/jobs/${job.id}`);
     } catch (error: any) {
       console.error("Failed to create job:", error);

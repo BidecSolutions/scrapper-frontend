@@ -29,6 +29,7 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { NotificationsBell } from "./NotificationsBell";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { RunningJobsIndicator } from "@/components/jobs/RunningJobsIndicator";
 import { apiClient } from "@/lib/api";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -264,6 +265,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <NotificationsBell />
+            <RunningJobsIndicator />
             {usageStats && <UsagePill used={usageStats.used} limit={usageStats.limit} />}
             {user && (
               <div className="flex items-center gap-2">

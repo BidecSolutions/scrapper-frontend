@@ -62,6 +62,15 @@ export interface Job {
   total_leads: number;
   created_at: string;
   completed_at: string | null;
+  ai_status?: "idle" | "running" | "ready" | "error" | "disabled";
+  ai_summary?: string | null;
+  ai_segments?: Array<{
+    name: string;
+    description: string;
+    ideal_use_case: string;
+    rough_percentage_of_leads: number;
+  }> | null;
+  ai_error?: string | null;
   [key: string]: any;
 }
 
@@ -149,8 +158,28 @@ class APIClient {
 
     // Add response interceptor for error handling
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // Log successful responses for debugging
+        if (response.config.url?.includes('/api/jobs')) {
+          console.log("[API Interceptor] Jobs response:", {
+            url: response.config.url,
+            status: response.status,
+            dataType: typeof response.data,
+            isArray: Array.isArray(response.data),
+            dataLength: Array.isArray(response.data) ? response.data.length : 'N/A'
+          });
+        }
+        return response;
+      },
       (error) => {
+        console.error("[API Interceptor] Request error:", {
+          url: error.config?.url,
+          method: error.config?.method,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          message: error.message
+        });
         if (error.response?.status === 401) {
           // Token expired or invalid
           this.token = null;
@@ -208,6 +237,11 @@ class APIClient {
       });
     }
     const response = await this.client.get(`/api/leads?${params.toString()}`);
+    return response.data;
+  }
+
+  async getJobLeads(jobId: number): Promise<Lead[]> {
+    const response = await this.client.get(`/api/jobs/${jobId}/leads`);
     return response.data;
   }
 
@@ -304,13 +338,60 @@ class APIClient {
 
   // Job endpoints
   async getJobs(status?: string): Promise<Job[]> {
-    const params = status ? `?status=${status}` : "";
-    const response = await this.client.get(`/api/jobs${params}`);
-    return response.data;
+    try {
+      const params = status ? `?status=${status}` : "";
+      console.log("[API] Fetching jobs from:", `${this.client.defaults.baseURL}/api/jobs${params}`);
+      const response = await this.client.get(`/api/jobs${params}`);
+      
+      console.log("[API] Jobs response:", {
+        status: response.status,
+        dataType: typeof response.data,
+        isArray: Array.isArray(response.data),
+        length: Array.isArray(response.data) ? response.data.length : 'N/A'
+      });
+      
+      // Normalize response - handle both array and object shapes
+      const data = response.data;
+      if (Array.isArray(data)) {
+        console.log("[API] Returning array of", data.length, "jobs");
+        return data;
+      }
+      // If backend returns { items: [...], total: ... }, extract items
+      if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
+        console.log("[API] Extracting items from object, returning", data.items.length, "jobs");
+        return data.items;
+      }
+      // Fallback: return empty array if shape is unexpected
+      console.warn("[API] Unexpected jobs response shape:", data);
+      return [];
+    } catch (error: any) {
+      console.error("[API] Error in getJobs:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        url: error.config?.url
+      });
+      throw error;
+    }
   }
 
   async getJob(jobId: number): Promise<Job> {
     const response = await this.client.get(`/api/jobs/${jobId}`);
+    return response.data;
+  }
+
+  async triggerJobAiInsights(jobId: number): Promise<Job> {
+    const response = await this.client.post(`/api/jobs/${jobId}/ai-insights`);
+    return response.data;
+  }
+
+  async createSavedViewFromSegment(jobId: number, segmentIndex: number): Promise<any> {
+    const response = await this.client.post(`/api/jobs/${jobId}/ai-segments/${segmentIndex}/saved-view`);
+    return response.data;
+  }
+
+  async createPlaybookFromSegment(jobId: number, segmentIndex: number): Promise<any> {
+    const response = await this.client.post(`/api/jobs/${jobId}/ai-segments/${segmentIndex}/playbook`);
     return response.data;
   }
 

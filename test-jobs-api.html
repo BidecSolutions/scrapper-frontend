@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Jobs API Test</title>
+</head>
+<body>
+    <h1>Jobs API Test</h1>
+    <button onclick="testAPI()">Test /api/jobs</button>
+    <pre id="result"></pre>
+    
+    <script>
+        async function testAPI() {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = 'Testing...';
+            
+            try {
+                // Try different ports
+                const ports = ['8000', '8002'];
+                for (const port of ports) {
+                    const url = `http://localhost:${port}/api/jobs`;
+                    resultEl.textContent += `\n\nTrying ${url}...\n`;
+                    
+                    try {
+                        const response = await fetch(url, {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            credentials: 'include'
+                        });
+                        
+                        resultEl.textContent += `Status: ${response.status} ${response.statusText}\n`;
+                        resultEl.textContent += `Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}\n`;
+                        
+                        const data = await response.json();
+                        resultEl.textContent += `Response type: ${typeof data}\n`;
+                        resultEl.textContent += `Is array: ${Array.isArray(data)}\n`;
+                        resultEl.textContent += `Length: ${Array.isArray(data) ? data.length : 'N/A'}\n`;
+                        resultEl.textContent += `Data: ${JSON.stringify(data, null, 2).substring(0, 1000)}...\n`;
+                        
+                        if (response.ok) {
+                            resultEl.textContent += `\n✅ SUCCESS on port ${port}!\n`;
+                            break;
+                        }
+                    } catch (err) {
+                        resultEl.textContent += `❌ Error: ${err.message}\n`;
+                    }
+                }
+            } catch (err) {
+                resultEl.textContent += `\n❌ Fatal error: ${err.message}\n`;
+            }
+        }
+    </script>
+</body>
+</html>
+
+

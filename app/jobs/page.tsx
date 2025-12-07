@@ -7,6 +7,7 @@ import Link from "next/link";
 import { apiClient, type Job, type JobStatus, type SavedView } from "@/lib/api";
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { SavedViewsBar } from "@/components/saved-views/SavedViewsBar";
+import { useJobsPolling } from "@/hooks/useJobsPolling";
 
 type JobStatusType = JobStatus | "all";
 
@@ -109,11 +110,23 @@ function formatDate(dateString: string): string {
 }
 
 export default function JobsPage() {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<JobStatusType>("all");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  // Use the polling hook - handles loading, error, and polling automatically
+  const { jobs, loading, error } = useJobsPolling(5000);
+  
+  // Debug logging - helps identify the issue
+  useEffect(() => {
+    console.log("[JobsPage] Render state:", { 
+      jobsCount: jobs.length, 
+      loading, 
+      error,
+      jobsIsArray: Array.isArray(jobs),
+      jobsSample: jobs.length > 0 ? jobs[0] : null
+    });
+  }, [jobs, loading, error]);
 
   // Command palette keyboard shortcut
   useEffect(() => {
@@ -131,22 +144,6 @@ export default function JobsPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  useEffect(() => {
-    loadJobs();
-  }, []);
-
-  const loadJobs = async (customFilters?: Record<string, any>) => {
-    try {
-      setLoading(true);
-      const data = await apiClient.getJobs();
-      setJobs(data);
-    } catch (error) {
-      console.error("Failed to load jobs:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleApplyView = (view: SavedView) => {
     if (view.filters.search) {
       setSearchQuery(view.filters.search);
@@ -160,19 +157,22 @@ export default function JobsPage() {
     }
   };
 
-  const filteredJobs = jobs.filter((job) => {
+  // Jobs are already normalized by useJobsPolling hook, but add defensive check
+  const normalizedJobs: Job[] = Array.isArray(jobs) ? jobs : [];
+
+  const filteredJobs = normalizedJobs.filter((job) => {
     const matchesSearch =
-      job.niche.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      job.niche?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (job.location && job.location.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesStatus = statusFilter === "all" || job.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const stats = {
-    total: jobs.length,
-    running: jobs.filter((j) => j.status === "running" || j.status === "ai_pending").length,
-    completed: jobs.filter((j) => j.status === "completed" || j.status === "completed_with_warnings").length,
-    failed: jobs.filter((j) => j.status === "failed").length,
+    total: normalizedJobs.length,
+    running: normalizedJobs.filter((j) => j.status === "running" || j.status === "ai_pending").length,
+    completed: normalizedJobs.filter((j) => j.status === "completed" || j.status === "completed_with_warnings").length,
+    failed: normalizedJobs.filter((j) => j.status === "failed").length,
   };
 
   return (
@@ -288,22 +288,37 @@ export default function JobsPage() {
                   <tr className="text-slate-400">
                     <th className="px-4 py-2 text-left font-medium">Job</th>
                     <th className="px-4 py-2 text-left font-medium">Status</th>
+                    <th className="px-4 py-2 text-left font-medium">Progress</th>
                     <th className="px-4 py-2 text-right font-medium">Leads</th>
                     <th className="px-4 py-2 text-right font-medium">Sites</th>
                     <th className="px-4 py-2 text-right font-medium">Created</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {loading ? (
+                  {error ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                      <td colSpan={6} className="px-4 py-8 text-center text-red-400">
+                        <div className="flex flex-col items-center gap-2">
+                          <p>Failed to load jobs: {error}</p>
+                          <button
+                            onClick={() => window.location.reload()}
+                            className="text-xs text-cyan-400 hover:text-cyan-300 underline"
+                          >
+                            Reload page
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : loading && jobs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
                         Loading jobs...
                       </td>
                     </tr>
                   ) : filteredJobs.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                        {jobs.length === 0 ? (
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                        {normalizedJobs.length === 0 ? (
                           <>
                             No jobs yet. Click{" "}
                             <Link href="/jobs/new" className="font-medium text-cyan-400 hover:text-cyan-300">
@@ -343,6 +358,25 @@ export default function JobsPage() {
                           </td>
                           <td className="px-4 py-3">
                             <StatusBadge status={job.status} />
+                          </td>
+                          <td className="px-4 py-3">
+                            {(job.status === "running" || job.status === "pending" || job.status === "ai_pending") && job.total_targets && job.total_targets > 0 ? (
+                              <div className="flex items-center gap-2">
+                                <div className="h-1.5 w-20 bg-slate-700 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-cyan-400 transition-all"
+                                    style={{ width: `${Math.round((job.processed_targets || 0) / job.total_targets * 100)}%` }}
+                                  />
+                                </div>
+                                <span className="text-[11px] text-slate-400">
+                                  {job.processed_targets || 0}/{job.total_targets}
+                                </span>
+                              </div>
+                            ) : job.status === "pending" ? (
+                              <span className="text-[11px] text-slate-400">Queued...</span>
+                            ) : job.status === "completed" || job.status === "completed_with_warnings" ? (
+                              <span className="text-[11px] text-emerald-400">Done</span>
+                            ) : null}
                           </td>
                           <td className="px-4 py-3 text-right text-slate-100">
                             {(job.result_count || 0).toLocaleString()}

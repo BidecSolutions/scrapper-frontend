@@ -12,6 +12,7 @@ import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { ArrowLeft, Download, RefreshCw } from "lucide-react";
 import { StatusChip } from "@/components/jobs/StatusChip";
+import { useJobPolling } from "@/hooks/useJobPolling";
 import { JobTimeline } from "@/components/jobs/JobTimeline";
 import { ProgressRing } from "@/components/jobs/ProgressRing";
 import { JobTabs } from "@/components/jobs/JobTabs";
@@ -26,46 +27,47 @@ export default function JobDetailPage() {
   const router = useRouter();
   const jobId = parseInt(params.id as string);
   
-  const [job, setJob] = useState<Job | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  // Use the polling hook for job updates
+  const { job, loading: jobLoading, error: jobError } = useJobPolling(jobId, 3000);
+  
+  // Debug: Log job state changes
+  useEffect(() => {
+    if (job) {
+      console.log("Job loaded:", { id: job.id, status: job.status, ai_status: job.ai_status });
+    }
+    if (jobError) {
+      console.error("Job error:", jobError);
+    }
+  }, [job, jobError]);
 
   useEffect(() => {
     if (jobId) {
-      loadJob();
       loadLeads();
     }
   }, [jobId]);
 
-  // Poll for job updates if job is running
+  // Poll for leads updates if job is running
   useEffect(() => {
-    if (!job || (job.status !== "running" && job.status !== "ai_pending")) {
+    if (!job || (job.status !== "running" && job.status !== "pending" && job.status !== "ai_pending")) {
       return;
     }
 
     const interval = setInterval(() => {
-      loadJob();
       loadLeads();
-    }, 2000); // Poll every 2 seconds
+    }, 3000); // Poll every 3 seconds
 
     return () => clearInterval(interval);
   }, [job, jobId]);
 
-  const loadJob = async () => {
-    try {
-      const data = await apiClient.getJob(jobId);
-      setJob(data);
-    } catch (error) {
-      console.error("Failed to load job:", error);
-    }
-  };
-
   const loadLeads = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.getLeads(jobId);
+      const data = await apiClient.getJobLeads(jobId);
       setLeads(data);
     } catch (error) {
       console.error("Failed to load leads:", error);
@@ -86,10 +88,47 @@ export default function JobDetailPage() {
     total: leads.length,
   };
 
-  if (!job) {
+  // Show loading only on initial load, not during polling updates
+  if (jobLoading && !job) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-slate-400">Loading job...</p>
+      <div className="flex items-center justify-center h-full p-6">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-600 border-t-cyan-400" />
+          <p className="text-sm text-slate-400">Loading job...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (jobError && !job) {
+    return (
+      <div className="p-6">
+        <button
+          onClick={() => router.push("/jobs")}
+          className="mb-4 text-xs text-slate-400 hover:text-slate-200"
+        >
+          ← Back to Jobs
+        </button>
+        <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100">
+          {jobError || "Job not found"}
+        </div>
+      </div>
+    );
+  }
+
+  // Safety check: if we still don't have a job after loading completes, show message
+  if (!job && !jobLoading) {
+    return (
+      <div className="p-6">
+        <button
+          onClick={() => router.push("/jobs")}
+          className="mb-4 text-xs text-slate-400 hover:text-slate-200"
+        >
+          ← Back to Jobs
+        </button>
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-950/40 p-4 text-sm text-amber-100">
+          Job not found. Please check the job ID: {jobId}
+        </div>
       </div>
     );
   }
@@ -279,6 +318,349 @@ function OverviewTab({ job, stats, leads }: { job: Job; stats: any; leads: Lead[
             <span className="text-slate-50">{job.max_pages_per_site}</span>
           </div>
         </div>
+      </div>
+
+      {/* Leads Preview */}
+      {job.status === "completed" || job.status === "completed_with_warnings" ? (
+        <LeadsPreview jobId={job.id} />
+      ) : null}
+
+      {/* AI Insights Card */}
+      <AIInsightsCard key={job.id} job={job} />
+    </div>
+  );
+}
+
+// Leads Preview Component
+function LeadsPreview({ jobId }: { jobId: number }) {
+  const [previewLeads, setPreviewLeads] = useState<Lead[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        setLoadingLeads(true);
+        const data = await apiClient.getJobLeads(jobId);
+        if (!mounted) return;
+        setPreviewLeads(data.slice(0, 5)); // First 5 leads
+      } catch (error) {
+        console.error("Failed to load leads preview:", error);
+      } finally {
+        if (mounted) setLoadingLeads(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      mounted = false;
+    };
+  }, [jobId]);
+
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-medium text-slate-100">Leads Preview</h3>
+        <button
+          onClick={() => {
+            // Try to switch to leads tab, or navigate to leads page
+            const leadsTab = document.querySelector('[data-tab="leads"]');
+            if (leadsTab) {
+              (leadsTab as HTMLElement).click();
+            } else {
+              router.push(`/leads?job_id=${jobId}`);
+            }
+          }}
+          className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+        >
+          View all leads →
+        </button>
+      </div>
+
+      {loadingLeads && (
+        <p className="text-xs text-slate-400">Loading leads…</p>
+      )}
+
+      {!loadingLeads && previewLeads.length === 0 && (
+        <p className="text-xs text-slate-400">No leads found for this job.</p>
+      )}
+
+      {previewLeads.length > 0 && (
+        <div className="space-y-2">
+          {previewLeads.map((lead) => (
+            <div
+              key={lead.id}
+              className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs hover:bg-slate-900 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-slate-100 truncate">
+                    {lead.name || "Unknown contact"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    {lead.website || "No website"}
+                  </p>
+                </div>
+                {lead.country && (
+                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300 flex-shrink-0">
+                    {lead.country}
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-400">
+                {lead.emails && lead.emails.length > 0 && (
+                  <span className="flex items-center gap-1">
+                    📧 <span className="truncate max-w-[150px]">{lead.emails[0]}</span>
+                  </span>
+                )}
+                {lead.phones && lead.phones.length > 0 && (
+                  <span className="flex items-center gap-1">
+                    📞 <span>{lead.phones[0]}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// AI Insights Card Component
+function AIInsightsCard({ job }: { job: Job }) {
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const router = useRouter();
+
+  const handleGenerateAi = async () => {
+    if (!job) return;
+    try {
+      setAiLoading(true);
+      setAiError(null);
+      const updated = await apiClient.triggerJobAiInsights(job.id);
+      // Polling will refresh the job data, so we don't need to manually update
+      // Just clear any previous errors
+      setAiError(null);
+    } catch (err: any) {
+      setAiError(err.message || "Failed to start AI insights");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const isCompleted = job.status === "completed" || job.status === "completed_with_warnings";
+  const aiStatus = job.ai_status || "idle";
+  
+  // Clear error when AI status changes to ready
+  useEffect(() => {
+    if (aiStatus === "ready" && aiError) {
+      setAiError(null);
+    }
+  }, [aiStatus, aiError]);
+
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-medium text-slate-100">
+            AI Insights for this job
+          </h3>
+          <p className="text-xs text-slate-400">
+            Get a summary of what kind of leads you scraped and suggested segments for campaigns.
+          </p>
+        </div>
+
+        <button
+          disabled={aiLoading || !isCompleted}
+          onClick={handleGenerateAi}
+          className="inline-flex items-center gap-1 rounded-full border border-cyan-500/60 px-3 py-1.5 text-xs font-medium text-cyan-300 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500 transition-colors"
+        >
+          {aiLoading ? (
+            <>
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+              Generating…
+            </>
+          ) : aiStatus === "ready" ? (
+            <>Regenerate</>
+          ) : (
+            <>Generate summary</>
+          )}
+        </button>
+      </div>
+
+      {/* States */}
+      {!isCompleted && (
+        <p className="text-xs text-slate-500">
+          Finish scraping first. AI insights are available once the job is completed.
+        </p>
+      )}
+
+      {isCompleted && aiStatus === "idle" && !aiLoading && (
+        <p className="text-xs text-slate-500">
+          Click "Generate summary" to analyze these leads with AI.
+        </p>
+      )}
+
+      {isCompleted && (aiStatus === "running" || aiLoading) && (
+        <div className="flex items-center gap-2 text-xs text-slate-300">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+          AI is analyzing your leads… this may take a few seconds.
+        </div>
+      )}
+
+      {aiError && (
+        <div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/40 p-2 text-[11px] text-red-100">
+          {aiError}
+        </div>
+      )}
+
+      {aiStatus === "disabled" && job.ai_error && (
+        <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-950/40 p-2 text-[11px] text-amber-100">
+          {job.ai_error}
+        </div>
+      )}
+
+      {aiStatus === "error" && job.ai_error && (
+        <div className="mt-2 rounded-lg border border-red-500/40 bg-red-950/40 p-2 text-[11px] text-red-100">
+          {job.ai_error}
+        </div>
+      )}
+
+      {aiStatus === "ready" && (
+        <div className="mt-3 space-y-3">
+          {job.ai_summary ? (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                Summary
+              </p>
+              <p className="mt-1 text-sm text-slate-100 whitespace-pre-line">
+                {job.ai_summary}
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">AI analysis completed, but no summary available.</p>
+          )}
+
+          {job.ai_segments && job.ai_segments.length > 0 ? (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                Suggested segments
+              </p>
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                {job.ai_segments.map((seg: any, idx: number) => (
+                  <AiSegmentCard
+                    key={idx}
+                    segment={seg}
+                    index={idx}
+                    jobId={job.id}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : aiStatus === "ready" && (
+            <p className="text-xs text-slate-500">No segments generated.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// AI Segment Card Component with Actions
+function AiSegmentCard({
+  segment,
+  index,
+  jobId,
+}: {
+  segment: any;
+  index: number;
+  jobId: number;
+}) {
+  const router = useRouter();
+  const [creatingView, setCreatingView] = useState(false);
+  const [creatingPlaybook, setCreatingPlaybook] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const handleCreateView = async () => {
+    try {
+      setLocalError(null);
+      setCreatingView(true);
+      const view = await apiClient.createSavedViewFromSegment(jobId, index);
+      // Redirect to leads page with the view
+      router.push(`/leads?view_id=${view.id}`);
+    } catch (err: any) {
+      setLocalError(err.message || "Failed to create saved view");
+    } finally {
+      setCreatingView(false);
+    }
+  };
+
+  const handleCreatePlaybook = async () => {
+    try {
+      setLocalError(null);
+      setCreatingPlaybook(true);
+      const playbook = await apiClient.createPlaybookFromSegment(jobId, index);
+      // Redirect to playbook detail page (adjust route as needed)
+      router.push(`/playbooks/${playbook.id}`);
+    } catch (err: any) {
+      setLocalError(err.message || "Failed to create playbook");
+    } finally {
+      setCreatingPlaybook(false);
+    }
+  };
+
+  return (
+    <div className="flex h-full flex-col justify-between rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+      <div>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-slate-100">
+            {segment.name || `Segment #${index + 1}`}
+          </p>
+          {typeof segment.rough_percentage_of_leads === "number" && (
+            <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+              ~{segment.rough_percentage_of_leads}%
+            </span>
+          )}
+        </div>
+        {segment.description && (
+          <p className="mt-1 text-[11px] text-slate-400">
+            {segment.description}
+          </p>
+        )}
+        {segment.ideal_use_case && (
+          <p className="mt-1 text-[11px] text-slate-500">
+            <span className="font-semibold text-slate-400">
+              Use case:
+            </span>{" "}
+            {segment.ideal_use_case}
+          </p>
+        )}
+      </div>
+
+      <div className="mt-3 space-y-1">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleCreateView}
+            disabled={creatingView || creatingPlaybook}
+            className="inline-flex flex-1 items-center justify-center gap-1 rounded-full border border-slate-700 px-2 py-1 text-[11px] font-medium text-slate-100 hover:border-cyan-500 hover:text-cyan-300 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500 transition-colors"
+          >
+            {creatingView ? "Creating view…" : "Save as view"}
+          </button>
+          <button
+            onClick={handleCreatePlaybook}
+            disabled={creatingPlaybook || creatingView}
+            className="inline-flex flex-1 items-center justify-center gap-1 rounded-full bg-cyan-500/90 px-2 py-1 text-[11px] font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300 transition-colors"
+          >
+            {creatingPlaybook ? "Creating…" : "Create playbook"}
+          </button>
+        </div>
+        {localError && (
+          <p className="text-[10px] text-red-300">{localError}</p>
+        )}
       </div>
     </div>
   );

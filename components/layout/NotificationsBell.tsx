@@ -28,8 +28,8 @@ export function NotificationsBell() {
 
   useEffect(() => {
     load();
-    // Poll every 60 seconds
-    const id = setInterval(load, 60000);
+    // Poll every 8 seconds for new notifications
+    const id = setInterval(load, 8000);
     return () => clearInterval(id);
   }, []);
 
@@ -75,40 +75,47 @@ export function NotificationsBell() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        className="relative p-2 rounded-full hover:bg-gray-100 transition-colors"
+        className="relative rounded-full p-2 text-slate-300 hover:bg-slate-800 transition-colors"
         onClick={() => setOpen((o) => !o)}
         aria-label="Notifications"
       >
-        <span className="text-xl">🔔</span>
+        <span className="inline-block h-5 w-5">🔔</span>
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-semibold rounded-full w-5 h-5 flex items-center justify-center">
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-cyan-500 px-1 text-[10px] font-semibold text-slate-950">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-white border rounded-lg shadow-lg z-50 max-h-96 flex flex-col">
-          <div className="flex justify-between items-center px-4 py-3 border-b">
-            <span className="text-sm font-semibold">Notifications</span>
-            {unreadCount > 0 && (
-              <button
-                onClick={handleMarkAllRead}
-                className="text-xs text-blue-600 hover:text-blue-800"
-              >
-                Mark all as read
-              </button>
-            )}
+        <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-slate-800 bg-slate-950/95 shadow-2xl z-50 max-h-96 flex flex-col">
+          <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Notifications
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-500">
+                {items.length} recent
+              </span>
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllRead}
+                  className="text-xs text-cyan-400 hover:text-cyan-300"
+                >
+                  Mark all read
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="overflow-y-auto flex-1">
+          <div className="overflow-y-auto flex-1 py-1">
             {loading && (
-              <div className="px-4 py-8 text-xs text-gray-500 text-center">
+              <div className="px-3 py-4 text-xs text-slate-500 text-center">
                 Loading…
               </div>
             )}
             {!loading && items.length === 0 && (
-              <div className="px-4 py-8 text-xs text-gray-500 text-center">
+              <div className="px-3 py-4 text-xs text-slate-500 text-center">
                 No notifications yet.
               </div>
             )}
@@ -116,18 +123,26 @@ export function NotificationsBell() {
               items.map((n) => (
                 <button
                   key={n.id}
-                  className={
-                    "w-full text-left px-4 py-3 border-b last:border-b-0 text-xs hover:bg-gray-50 transition-colors " +
-                    (n.is_read ? "bg-white" : "bg-blue-50")
-                  }
+                  className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-slate-900 transition-colors"
                   onClick={() => handleClickItem(n)}
                 >
-                  <div className="font-medium mb-1">{n.title}</div>
-                  {n.body && (
-                    <div className="text-gray-600 truncate mb-1">{n.body}</div>
-                  )}
-                  <div className="text-gray-400 text-[10px]">
-                    {new Date(n.created_at).toLocaleString()}
+                  <span
+                    className={`mt-1 h-1.5 w-1.5 rounded-full flex-shrink-0 ${
+                      n.is_read ? "bg-slate-600" : "bg-cyan-400"
+                    }`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-slate-100">
+                      {n.title}
+                    </p>
+                    {n.body && (
+                      <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">
+                        {n.body}
+                      </p>
+                    )}
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      {new Date(n.created_at).toLocaleString()}
+                    </p>
                   </div>
                 </button>
               ))}
