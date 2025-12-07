@@ -3,6 +3,7 @@ export interface Segment {
   name: string;
   description?: string | null;
   filter_json: Record<string, any>;
+  total_leads?: number;
   created_at: string;
   updated_at: string;
 }

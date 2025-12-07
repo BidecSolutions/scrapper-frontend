@@ -186,12 +186,12 @@ export default function VerificationPage() {
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      completed: { icon: CheckCircle2, color: "emerald", label: "Completed" },
+      completed: { icon: CheckCircle2, color: "emerald", label: "Completed", spin: false },
       running: { icon: Loader2, color: "cyan", label: "Running", spin: true },
-      pending: { icon: AlertCircle, color: "amber", label: "Pending" },
-      failed: { icon: XCircle, color: "rose", label: "Failed" },
+      pending: { icon: AlertCircle, color: "amber", label: "Pending", spin: false },
+      failed: { icon: XCircle, color: "rose", label: "Failed", spin: false },
     };
-    const badge = badges[status as keyof typeof badges] || { icon: AlertCircle, color: "slate", label: status };
+    const badge = badges[status as keyof typeof badges] || { icon: AlertCircle, color: "slate", label: status, spin: false };
     const Icon = badge.icon;
 
     return (

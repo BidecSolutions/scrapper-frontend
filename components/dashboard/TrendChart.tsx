@@ -81,8 +81,9 @@ export function TrendChart({ data, color = "cyan", height = 120 }: TrendChartPro
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.5 + i * 0.1, duration: 0.3 }}
             className="w-1.5 h-1.5 rounded-full shadow-lg"
-            style={{ backgroundColor: colors.stroke, boxShadow: `0 0 8px ${colors.stroke}40` }}
             style={{
+              backgroundColor: colors.stroke,
+              boxShadow: `0 0 8px ${colors.stroke}40`,
               bottom: `${((d.value - minValue) / range) * 100}%`,
             }}
           />
