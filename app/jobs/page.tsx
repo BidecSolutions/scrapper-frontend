@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Search } from "lucide-react";
+import { AlertTriangle, Plus, Search } from "lucide-react";
 import Link from "next/link";
-import { apiClient, type Job, type JobStatus, type SavedView } from "@/lib/api";
+import { apiClient, type Job, type JobStatus, type SavedView, type LlmHealth } from "@/lib/api";
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { SavedViewsBar } from "@/components/saved-views/SavedViewsBar";
 import { useJobsPolling } from "@/hooks/useJobsPolling";
@@ -113,6 +113,8 @@ export default function JobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<JobStatusType>("all");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [llmHealth, setLlmHealth] = useState<LlmHealth | null>(null);
+  const [llmHealthError, setLlmHealthError] = useState<string | null>(null);
 
   // Use the polling hook - handles loading, error, and polling automatically
   const { jobs, loading, error } = useJobsPolling(5000);
@@ -127,6 +129,27 @@ export default function JobsPage() {
       jobsSample: jobs.length > 0 ? jobs[0] : null
     });
   }, [jobs, loading, error]);
+
+  // Fetch LLM diagnostics once on mount
+  useEffect(() => {
+    let active = true;
+    apiClient
+      .getLlmHealth()
+      .then((data) => {
+        if (!active) return;
+        setLlmHealth(data);
+        setLlmHealthError(null);
+      })
+      .catch((err: any) => {
+        if (!active) return;
+        const message = err?.response?.data?.detail || err?.message || "Unable to fetch LLM diagnostics.";
+        setLlmHealthError(message);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Command palette keyboard shortcut
   useEffect(() => {
@@ -213,6 +236,30 @@ export default function JobsPage() {
             </motion.div>
           </div>
         </motion.header>
+        {llmHealth && llmHealth.status !== "ok" && (
+          <div className="px-6 pt-4">
+            <div className="rounded-2xl border border-amber-500/40 bg-amber-500/15 px-4 py-3 flex items-start gap-3 text-sm text-amber-100">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-300" />
+              <div>
+                <p className="font-semibold text-amber-50">AI Insights Unavailable</p>
+                <p className="text-amber-100/80">
+                  {llmHealth.message} {llmHealth.provider ? `(provider: ${llmHealth.provider})` : ""}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        {llmHealthError && (
+          <div className="px-6 pt-4">
+            <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-rose-200" />
+              <div>
+                <p className="font-semibold text-rose-50">LLM Health Check Failed</p>
+                <p className="text-rose-100/80">{llmHealthError}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar px-6 pt-8 pb-12">

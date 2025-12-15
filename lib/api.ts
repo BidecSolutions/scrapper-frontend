@@ -132,6 +132,13 @@ export interface HealthScore {
   [key: string]: any;
 }
 
+export interface LlmHealth {
+  configured: boolean;
+  provider: string | null;
+  status: "ok" | "missing_key" | "error";
+  message: string;
+}
+
 // API Client
 class APIClient {
   private client: AxiosInstance;
@@ -188,6 +195,11 @@ class APIClient {
         return Promise.reject(error);
       }
     );
+  }
+
+  async getLlmHealth(): Promise<LlmHealth> {
+    const response = await this.client.get("/api/health/llm");
+    return response.data;
   }
 
   setToken(token: string | null) {
