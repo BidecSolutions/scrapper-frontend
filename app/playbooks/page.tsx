@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
@@ -17,6 +17,12 @@ export default function PlaybooksPage() {
   const [jobStatus, setJobStatus] = useState<any>(null);
   const [jobHistory, setJobHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [customPlaybooks, setCustomPlaybooks] = useState<any[]>([]);
+  const [customRuns, setCustomRuns] = useState<any[]>([]);
+  const [simResult, setSimResult] = useState<any | null>(null);
+  const [engineStatus, setEngineStatus] = useState<any | null>(null);
   
   const [config, setConfig] = useState({
     days: 7,
@@ -25,8 +31,57 @@ export default function PlaybooksPage() {
     list_name: "",
   });
 
+  const loadJobHistory = useCallback(async () => {
+    try {
+      setLoadingHistory(true);
+      const jobs = await apiClient.getPlaybookJobs(10);
+      setJobHistory(jobs);
+    } catch (error) {
+      console.error("Failed to load job history:", error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadJobHistory();
+  }, [loadJobHistory]);
+
+  useEffect(() => {
+    let active = true;
+    apiClient
+      .getPlaybookEngineStatus()
+      .then((data) => {
+        if (!active) return;
+        setEngineStatus(data);
+      })
+      .catch(() => {
+        if (!active) return;
+        setEngineStatus(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("leadflux_custom_playbooks");
+      const data = raw ? JSON.parse(raw) : [];
+      setCustomPlaybooks(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setCustomPlaybooks([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("leadflux_custom_playbook_runs");
+      const data = raw ? JSON.parse(raw) : [];
+      setCustomRuns(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setCustomRuns([]);
+    }
   }, []);
 
   // Poll for job status if job is running
@@ -51,23 +106,11 @@ export default function PlaybooksPage() {
         } catch (error) {
           console.error("Failed to poll job status:", error);
         }
-      }, 3000); // Poll every 3 seconds
+      }, 15000); // Poll every 15 seconds
       
       return () => clearInterval(interval);
     }
-  }, [jobId, jobStatus]);
-
-  const loadJobHistory = async () => {
-    try {
-      setLoadingHistory(true);
-      const jobs = await apiClient.getPlaybookJobs(10);
-      setJobHistory(jobs);
-    } catch (error) {
-      console.error("Failed to load job history:", error);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
+  }, [jobId, jobStatus, loadJobHistory, showToast]);
 
   const runLinkedInCampaignPlaybook = async () => {
     try {
@@ -138,6 +181,73 @@ export default function PlaybooksPage() {
     }
   };
 
+  const stats = {
+    total: jobHistory.length,
+    completed: jobHistory.filter((job) => job.status === "completed").length,
+    failed: jobHistory.filter((job) => job.status === "failed").length,
+    running: jobHistory.filter((job) => job.status === "running" || job.status === "queued").length,
+  };
+
+  const runCustomPlaybook = (playbook: any) => {
+    const runId = `${Date.now()}`;
+    const runEntry = {
+      id: runId,
+      playbook_id: playbook.id,
+      playbook_name: playbook.name,
+      status: "queued",
+      created_at: new Date().toISOString(),
+    };
+    const nextRuns = [runEntry, ...customRuns];
+    setCustomRuns(nextRuns);
+    localStorage.setItem("leadflux_custom_playbook_runs", JSON.stringify(nextRuns));
+    showToast({
+      type: "info",
+      title: "Playbook queued",
+      message: `Started "${playbook.name}". Connect backend to execute steps.`,
+    });
+    setTimeout(() => {
+      setCustomRuns((prev) => {
+        const updated = prev.map((run) =>
+          run.id === runId ? { ...run, status: "completed", finished_at: new Date().toISOString() } : run
+        );
+        localStorage.setItem("leadflux_custom_playbook_runs", JSON.stringify(updated));
+        return updated;
+      });
+    }, 1500);
+  };
+
+  const simulateExecution = () => {
+    const estimatedLeads = Math.max(25, config.days * 12);
+    const emailFinds = Math.round(estimatedLeads * 0.6);
+    const verified = Math.round(emailFinds * 0.7);
+    const scored = Math.round(estimatedLeads * 0.9);
+    const steps = [
+      { label: "Collect leads", value: estimatedLeads },
+      { label: "Find emails", value: emailFinds },
+      { label: "Verify emails", value: verified },
+      { label: "Score leads", value: scored },
+      { label: "Build list", value: Math.round(verified * 0.85) },
+    ];
+    setSimResult({
+      estimatedLeads,
+      steps,
+      runtimeMinutes: Math.max(6, Math.round(estimatedLeads / 20)),
+      credits: Math.round(estimatedLeads * 1.2),
+    });
+  };
+  const avgLeadsAdded =
+    jobHistory.length > 0
+      ? Math.round(
+          jobHistory.reduce((sum, job) => sum + (job.meta?.leads_added_to_list || 0), 0) / jobHistory.length
+        )
+      : 0;
+  const filteredHistory = jobHistory.filter((job) => {
+    if (statusFilter !== "all" && job.status !== statusFilter) return false;
+    if (!searchQuery.trim()) return true;
+    const haystack = `${job.output_list_name || ""} ${job.status}`.toLowerCase();
+    return haystack.includes(searchQuery.trim().toLowerCase());
+  });
+
   return (
     <div className="space-y-6">
         <div>
@@ -147,7 +257,59 @@ export default function PlaybooksPage() {
           </p>
         </div>
 
-        {/* LinkedIn → Campaign Playbook */}
+        <motion.div
+          className="grid gap-4 md:grid-cols-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Total runs</p>
+            <p className="mt-2 text-xl font-semibold text-slate-50">{stats.total}</p>
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Completed</p>
+            <p className="mt-2 text-xl font-semibold text-emerald-300">{stats.completed}</p>
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Failed</p>
+            <p className="mt-2 text-xl font-semibold text-rose-300">{stats.failed}</p>
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Avg leads added</p>
+            <p className="mt-2 text-xl font-semibold text-slate-50">{avgLeadsAdded}</p>
+          </div>
+        </motion.div>
+
+        <motion.div
+          className="rounded-xl border border-slate-800 bg-slate-900/60 p-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Engine status</p>
+              <p className="mt-1 text-sm text-slate-300">
+                {engineStatus ? "Last run tracked" : "Engine status unavailable"}
+              </p>
+            </div>
+            {engineStatus && (
+              <div className="text-xs text-slate-400">
+                {engineStatus.last_run_at ? `Last run: ${formatRelativeTime(engineStatus.last_run_at)}` : "No runs yet"}
+              </div>
+            )}
+          </div>
+          {engineStatus && (
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-400">
+              {Object.entries(engineStatus.by_status || {}).map(([status, count]) => (
+                <span key={status} className="rounded-full border border-slate-700 px-2 py-1">
+                  {status}: {count}
+                </span>
+              ))}
+            </div>
+          )}
+        </motion.div>
+
+        {/* LinkedIn Campaign Playbook */}
         <motion.div
           className="rounded-xl border border-slate-800 bg-slate-900/60 p-6"
           initial={{ opacity: 0, y: 20 }}
@@ -155,7 +317,7 @@ export default function PlaybooksPage() {
         >
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h2 className="text-lg font-semibold mb-1">LinkedIn → Campaign</h2>
+              <h2 className="text-lg font-semibold mb-1">LinkedIn Campaign</h2>
               <p className="text-sm text-slate-400">
                 Transform LinkedIn leads into a campaign-ready list with verified emails
               </p>
@@ -227,7 +389,7 @@ export default function PlaybooksPage() {
                 <li>Finds all LinkedIn leads from the last {config.days} days</li>
                 <li>Runs Email Finder on leads without emails</li>
                 <li>Verifies all emails</li>
-                <li>Filters to Valid{config.include_risky ? " and Risky" : ""} emails with score ≥ {config.min_score}</li>
+                <li>Filters to Valid{config.include_risky ? " and Risky" : ""} emails with score >= {config.min_score}</li>
                 <li>Creates a campaign-ready list</li>
               </ul>
             </div>
@@ -322,6 +484,138 @@ export default function PlaybooksPage() {
           </div>
         </motion.div>
 
+        <motion.div
+          className="rounded-xl border border-slate-800 bg-slate-900/60 p-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold mb-1">Execution simulator</h2>
+              <p className="text-sm text-slate-400">
+                Preview estimated output and step metrics before running.
+              </p>
+            </div>
+            <Button variant="outline" onClick={simulateExecution}>
+              Simulate run
+            </Button>
+          </div>
+          {simResult ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Est. leads</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-50">{simResult.estimatedLeads}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Runtime</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-50">{simResult.runtimeMinutes} min</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Credits</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-50">{simResult.credits}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {simResult.steps.map((step: any) => (
+                  <div key={step.label} className="flex items-center justify-between text-xs text-slate-400">
+                    <span>{step.label}</span>
+                    <span className="text-slate-200 font-semibold">{step.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">Run the simulator to see estimates.</p>
+          )}
+        </motion.div>
+
+        <motion.div
+          className="rounded-xl border border-slate-800 bg-slate-900/60 p-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold mb-1">Custom Playbooks</h2>
+              <p className="text-sm text-slate-400">
+                Locally saved workflows built in the Playbook Builder.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => router.push("/playbooks/new")}>
+              Create playbook
+            </Button>
+          </div>
+
+          {customPlaybooks.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-700 p-4 text-sm text-slate-400">
+              No custom playbooks yet. Build one in the Playbook Builder.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {customPlaybooks.map((playbook) => (
+                <div
+                  key={playbook.id}
+                  className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-slate-50">{playbook.name}</p>
+                    <p className="text-xs text-slate-400">
+                      Min score {playbook.minScore} • Risky {playbook.includeRisky ? "allowed" : "blocked"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => runCustomPlaybook(playbook)}
+                    >
+                      <Play className="w-3 h-3 mr-1" />
+                      Run
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+
+        <motion.div
+          className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="px-4 py-3 border-b border-slate-800">
+            <h2 className="text-sm font-semibold">Custom Run History</h2>
+          </div>
+          {customRuns.length === 0 ? (
+            <div className="p-4 text-center text-slate-400">No custom runs yet.</div>
+          ) : (
+            <div className="divide-y divide-slate-800">
+              {customRuns.slice(0, 8).map((run) => (
+                <div key={run.id} className="px-4 py-3 text-xs text-slate-300 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-50 font-medium">{run.playbook_name}</p>
+                    <p className="text-slate-500">
+                      {formatRelativeTime(run.created_at)}
+                      {run.finished_at ? ` - Finished ${formatRelativeTime(run.finished_at)}` : ""}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-2 py-1 rounded-full border text-[11px] ${
+                      run.status === "completed"
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                        : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                    }`}
+                  >
+                    {run.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+
         {/* Job History */}
         <motion.div
           className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden"
@@ -330,19 +624,44 @@ export default function PlaybooksPage() {
           transition={{ delay: 0.1 }}
         >
           <div className="px-4 py-3 border-b border-slate-800">
-            <h2 className="text-sm font-semibold">Recent Playbook Jobs</h2>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <h2 className="text-sm font-semibold">Recent Playbook Jobs</h2>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {["all", "completed", "running", "queued", "failed"].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setStatusFilter(status)}
+                    className={`px-3 py-1 rounded-full border ${
+                      statusFilter === status
+                        ? "border-cyan-500/40 text-cyan-300 bg-cyan-500/10"
+                        : "border-slate-700 text-slate-400 hover:border-slate-500"
+                    }`}
+                  >
+                    {status === "all" ? "All" : status}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-3">
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by list name"
+                className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-slate-50 text-xs"
+              />
+            </div>
           </div>
           
           {loadingHistory ? (
             <div className="p-4 text-center text-slate-400">Loading history...</div>
-          ) : jobHistory.length === 0 ? (
+          ) : filteredHistory.length === 0 ? (
             <div className="p-4 text-center text-slate-400">
-              No playbook jobs yet. Run your first playbook above!
+              No playbook jobs match your filters.
             </div>
           ) : (
             <div className="divide-y divide-slate-800">
               <AnimatePresence>
-                {jobHistory.map((job) => (
+                {filteredHistory.map((job) => (
                   <motion.div
                     key={job.id}
                     className="px-4 py-3 hover:bg-slate-800/40 transition-colors"
@@ -355,7 +674,7 @@ export default function PlaybooksPage() {
                         <div className="flex items-center gap-2 mb-1">
                           {getStatusIcon(job.status)}
                           <span className="text-sm font-medium">
-                            LinkedIn → Campaign
+                            LinkedIn Campaign
                           </span>
                           <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(job.status)}`}>
                             {job.status}
@@ -365,7 +684,7 @@ export default function PlaybooksPage() {
                         <div className="text-xs text-slate-400 space-y-1 mt-2">
                           <p>
                             {job.meta?.total_leads ? (
-                              <>Processed {job.meta.total_leads} LinkedIn leads → {job.meta.valid_count || 0} Valid, {job.meta.risky_count || 0} Risky, {job.meta.invalid_count || 0} Invalid, {job.meta.unknown_count || 0} Unknown.</>
+                              <>Processed {job.meta.total_leads} LinkedIn leads - {job.meta.valid_count || 0} Valid, {job.meta.risky_count || 0} Risky, {job.meta.invalid_count || 0} Invalid, {job.meta.unknown_count || 0} Unknown.</>
                             ) : (
                               <>Job {job.status}</>
                             )}
@@ -377,7 +696,7 @@ export default function PlaybooksPage() {
                           )}
                           <p className="text-slate-500">
                             {formatRelativeTime(job.created_at)}
-                            {job.finished_at && ` • Finished ${formatRelativeTime(job.finished_at)}`}
+                            {job.finished_at && ` - Finished ${formatRelativeTime(job.finished_at)}`}
                           </p>
                         </div>
                       </div>

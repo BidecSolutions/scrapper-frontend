@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ExternalLink, Search } from "lucide-react";
-import { apiClient, API_URL } from "@/lib/api";
+import { API_URL } from "@/lib/api";
 import { SmartScoreBadge } from "./SmartScoreBadge";
 
 interface SimilarLeadsModalProps {
@@ -23,13 +23,7 @@ export function SimilarLeadsModal({
   const [loading, setLoading] = useState(false);
   const [scope, setScope] = useState<"workspace" | "job">("workspace");
 
-  useEffect(() => {
-    if (open && leadId) {
-      loadSimilarLeads();
-    }
-  }, [open, leadId, scope]);
-
-  const loadSimilarLeads = async () => {
+  const loadSimilarLeads = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(
@@ -44,7 +38,13 @@ export function SimilarLeadsModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [leadId, scope]);
+
+  useEffect(() => {
+    if (open && leadId) {
+      loadSimilarLeads();
+    }
+  }, [open, leadId, scope, loadSimilarLeads]);
 
   if (!open) return null;
 

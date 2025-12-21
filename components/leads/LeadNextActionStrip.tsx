@@ -75,7 +75,7 @@ export function LeadNextActionStrip({ leadId }: { leadId: number }) {
           <div className="text-[11px] text-slate-500">
             <div className="font-medium text-slate-400 mb-0.5">Recommended next step (AI)</div>
             <div>
-              AI hasn't recommended a next step yet. Once you start logging outcomes, this will suggest the best channel.
+              AI hasn&apos;t recommended a next step yet. Once you start logging outcomes, this will suggest the best channel.
             </div>
           </div>
         </div>
@@ -110,4 +110,3 @@ export function LeadNextActionStrip({ leadId }: { leadId: number }) {
     </motion.div>
   );
 }
-

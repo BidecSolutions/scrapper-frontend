@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   RefreshCw, 
@@ -29,12 +29,7 @@ export default function DuplicatesPage() {
   const [selectedGroup, setSelectedGroup] = useState<DuplicateGroup | null>(null);
   const [showMergeModal, setShowMergeModal] = useState(false);
 
-  useEffect(() => {
-    loadGroups();
-    loadStats();
-  }, []);
-
-  const loadGroups = async () => {
+  const loadGroups = useCallback(async () => {
     try {
       setLoading(true);
       const data = await apiClient.getDuplicateGroups("pending");
@@ -49,16 +44,21 @@ export default function DuplicatesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const data = await apiClient.getDuplicateStats();
       setStats(data);
     } catch (error) {
       console.error("Failed to load stats:", error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadGroups();
+    loadStats();
+  }, [loadGroups, loadStats]);
 
   const handleDetect = async () => {
     try {
@@ -199,7 +199,7 @@ export default function DuplicatesPage() {
                   No duplicate groups found
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-                  Click "Detect Duplicates" to scan your leads for potential duplicates
+                  Click &quot;Detect Duplicates&quot; to scan your leads for potential duplicates
                 </p>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <Button
@@ -408,9 +408,25 @@ function MergeModal({
   onClose: () => void;
   onMerge: (groupId: number, canonicalLeadId: number) => void;
 }) {
-  const [selectedCanonical, setSelectedCanonical] = useState<number | null>(
-    group.leads[0]?.id || null
-  );
+  const initialCanonical = [...group.leads]
+    .sort((a, b) => {
+      const score = (lead: any) =>
+        (lead.emails?.length || 0) +
+        (lead.phones?.length || 0) +
+        (lead.website ? 1 : 0);
+      return score(b) - score(a);
+    })[0]?.id || null;
+  const [selectedCanonical, setSelectedCanonical] = useState<number | null>(initialCanonical);
+  const canonicalLead = group.leads.find((lead) => lead.id === selectedCanonical) || group.leads[0];
+  const mergedEmails = Array.from(
+    new Set(group.leads.flatMap((lead) => lead.emails || []))
+  ).filter(Boolean);
+  const mergedPhones = Array.from(
+    new Set(group.leads.flatMap((lead) => lead.phones || []))
+  ).filter(Boolean);
+  const mergedWebsites = Array.from(
+    new Set(group.leads.map((lead) => lead.website).filter(Boolean))
+  ) as string[];
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -431,7 +447,7 @@ function MergeModal({
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none"
           >
-            ×
+            x
           </motion.button>
         </div>
 
@@ -439,6 +455,29 @@ function MergeModal({
           Select which lead to keep (canonical). All other leads will be merged into it, and their
           data (emails, phones, sources) will be combined.
         </p>
+
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/30 p-4 mb-6">
+          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Merge Preview</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-slate-600 dark:text-slate-400">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Emails</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{mergedEmails.length}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Phones</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{mergedPhones.length}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Websites</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{mergedWebsites.length}</p>
+            </div>
+          </div>
+          {canonicalLead && (
+            <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
+              Canonical lead: {canonicalLead.name || "Unnamed Lead"} #{canonicalLead.id}
+            </p>
+          )}
+        </div>
 
         <div className="space-y-3 mb-6">
           {group.leads.map((lead, idx) => (
@@ -467,12 +506,12 @@ function MergeModal({
                   {lead.name || "Unnamed Lead"} #{lead.id}
                 </div>
                 <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
-                  {lead.website && <div>🌐 {lead.website}</div>}
+                  {lead.website && <div>Website: {lead.website}</div>}
                   {lead.emails && lead.emails.length > 0 && (
-                    <div>📧 {lead.emails.join(", ")}</div>
+                    <div>Emails: {lead.emails.join(", ")}</div>
                   )}
                   {lead.phones && lead.phones.length > 0 && (
-                    <div>📞 {lead.phones.join(", ")}</div>
+                    <div>Phones: {lead.phones.join(", ")}</div>
                   )}
                 </div>
               </div>

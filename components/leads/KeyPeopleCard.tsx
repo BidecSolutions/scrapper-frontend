@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Users, Linkedin, ExternalLink, Sparkles } from "lucide-react";
 import { apiClient } from "@/lib/api";
@@ -24,11 +24,7 @@ export function KeyPeopleCard({ leadId }: KeyPeopleCardProps) {
   const [people, setPeople] = useState<KeyPerson[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadKeyPeople();
-  }, [leadId]);
-
-  const loadKeyPeople = async () => {
+  const loadKeyPeople = useCallback(async () => {
     try {
       setLoading(true);
       const data = await apiClient.getKeyPeople(leadId, 5);
@@ -38,7 +34,11 @@ export function KeyPeopleCard({ leadId }: KeyPeopleCardProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [leadId]);
+
+  useEffect(() => {
+    loadKeyPeople();
+  }, [leadId, loadKeyPeople]);
 
   if (loading) {
     return (

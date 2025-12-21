@@ -31,6 +31,7 @@ export function PageHeader({ title, description, backUrl, action, icon: Icon }: 
               whileHover={{ scale: 1.1, x: -2 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => router.push(backUrl)}
+              aria-label="Go back"
               className="p-2 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded-lg transition-colors flex-shrink-0"
             >
               <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
@@ -41,7 +42,7 @@ export function PageHeader({ title, description, backUrl, action, icon: Icon }: 
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 }}
-              className="text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-50 dark:via-slate-100 dark:to-slate-50 bg-clip-text text-transparent flex items-center gap-2"
+              className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-slate-50 dark:via-slate-100 dark:to-slate-50 bg-clip-text text-transparent flex items-center gap-2"
             >
               {Icon && <Icon className="w-7 h-7 text-cyan-500" />}
               {title}

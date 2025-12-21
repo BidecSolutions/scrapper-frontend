@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
@@ -22,6 +22,7 @@ import {
   Globe,
   Sparkles,
   Lightbulb,
+  Copy,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -50,9 +51,37 @@ export default function EmailFinderPage() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkEmails, setBulkEmails] = useState("");
   const [bulkResults, setBulkResults] = useState<any[]>([]);
+  const bulkFileRef = useRef<HTMLInputElement | null>(null);
+
+  const normalizeDomain = (value: string) => {
+    return value
+      .trim()
+      .replace(/^https?:\/\//i, "")
+      .replace(/^www\./i, "")
+      .split("/")[0];
+  };
+
+  const handleCopy = async (text: string | undefined | null) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast({
+        type: "success",
+        title: "Copied",
+        message: "Copied to clipboard",
+      });
+    } catch {
+      showToast({
+        type: "error",
+        title: "Copy failed",
+        message: "Could not copy to clipboard",
+      });
+    }
+  };
 
   const handleFindEmail = async () => {
-    if (!finderForm.firstName || !finderForm.lastName || !finderForm.domain) {
+    const domain = normalizeDomain(finderForm.domain);
+    if (!finderForm.firstName || !finderForm.lastName || !domain) {
       showToast({
         type: "error",
         title: "Missing fields",
@@ -64,10 +93,11 @@ export default function EmailFinderPage() {
     setFinderLoading(true);
     setFinderResult(null);
     try {
+      setFinderForm((prev) => ({ ...prev, domain }));
       const result = await apiClient.findEmail(
         finderForm.firstName,
         finderForm.lastName,
-        finderForm.domain,
+        domain,
         finderForm.skipSmtp
       );
       setFinderResult(result);
@@ -200,6 +230,78 @@ export default function EmailFinderPage() {
     }
   };
 
+  const parseEmailsFromText = (text: string) => {
+    const regex = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+    const matches = text.match(regex) || [];
+    const unique = Array.from(new Set(matches.map((email) => email.toLowerCase())));
+    return unique;
+  };
+
+  const handleBulkFileImport = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const emails = parseEmailsFromText(text);
+      if (emails.length === 0) {
+        showToast({
+          type: "info",
+          title: "No emails found",
+          message: "We could not find any emails in that file.",
+        });
+        return;
+      }
+      setBulkEmails((prev) => {
+        const combined = prev ? `${prev}\n${emails.join("\n")}` : emails.join("\n");
+        return combined.trim();
+      });
+      showToast({
+        type: "success",
+        title: "File imported",
+        message: `Added ${emails.length} emails from ${file.name}`,
+      });
+    } catch {
+      showToast({
+        type: "error",
+        title: "Import failed",
+        message: "Could not read that file. Please try again.",
+      });
+    } finally {
+      if (bulkFileRef.current) {
+        bulkFileRef.current.value = "";
+      }
+    }
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const emails = parseEmailsFromText(text);
+      if (emails.length === 0) {
+        showToast({
+          type: "info",
+          title: "No emails found",
+          message: "Clipboard text did not include any emails.",
+        });
+        return;
+      }
+      setBulkEmails((prev) => {
+        const combined = prev ? `${prev}\n${emails.join("\n")}` : emails.join("\n");
+        return combined.trim();
+      });
+      showToast({
+        type: "success",
+        title: "Clipboard imported",
+        message: `Added ${emails.length} emails from clipboard`,
+      });
+    } catch {
+      showToast({
+        type: "error",
+        title: "Clipboard blocked",
+        message: "Could not read clipboard. Please paste manually.",
+      });
+    }
+  };
+
   const handleDownloadExtension = async () => {
     try {
       const response = await fetch(
@@ -229,6 +331,16 @@ export default function EmailFinderPage() {
   };
 
   const emailCount = bulkEmails.split("\n").filter((e: string) => e.trim()).length;
+  const bulkTotal = bulkResults.length;
+  const bulkValidRate = bulkTotal > 0 ? Math.round(((bulkSummary.valid || 0) / bulkTotal) * 100) : 0;
+  const bulkRiskRate = bulkTotal > 0 ? Math.round(((bulkSummary.risky || 0) / bulkTotal) * 100) : 0;
+  const bulkSummary = bulkResults.reduce(
+    (acc, result) => {
+      acc[result.status] = (acc[result.status] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -278,10 +390,10 @@ export default function EmailFinderPage() {
                 </p>
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 text-sm">
                   {[
-                    { num: "①", text: "Download and unzip the extension" },
-                    { num: "②", text: "Go to chrome://extensions" },
-                    { num: "③", text: "Enable Developer mode and Load unpacked" },
-                    { num: "④", text: "Select extension folder and browse LinkedIn" },
+                    { num: "1", text: "Download and unzip the extension" },
+                    { num: "2", text: "Go to chrome://extensions" },
+                    { num: "3", text: "Enable Developer mode and Load unpacked" },
+                    { num: "4", text: "Select extension folder and browse LinkedIn" },
                   ].map((step, idx) => (
                     <motion.div
                       key={idx}
@@ -309,7 +421,7 @@ export default function EmailFinderPage() {
                     href="chrome://extensions"
                     className="inline-flex items-center text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-semibold text-sm underline underline-offset-4"
                   >
-                    Open Chrome Extensions Page →
+                    Open Chrome Extensions Page ->
                   </a>
                 </div>
               </div>
@@ -399,6 +511,36 @@ export default function EmailFinderPage() {
                       checked={finderForm.skipSmtp}
                       onChange={(e) => setFinderForm({ ...finderForm, skipSmtp: e.target.checked })}
                     />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          setFinderForm({
+                            firstName: "",
+                            lastName: "",
+                            domain: "",
+                            skipSmtp: false,
+                          })
+                        }
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          setFinderForm({
+                            firstName: "Sarah",
+                            lastName: "Lee",
+                            domain: "acme.com",
+                            skipSmtp: false,
+                          })
+                        }
+                      >
+                        Try sample
+                      </Button>
+                    </div>
                     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                       <Button
                         type="submit"
@@ -439,6 +581,15 @@ export default function EmailFinderPage() {
                                 Confidence: {((finderResult.confidence || 0) * 100).toFixed(0)}%
                               </div>
                             </div>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleCopy(finderResult.email)}
+                              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-cyan-600"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              Copy
+                            </motion.button>
                           </div>
                           <div className={`p-4 rounded-xl border text-sm ${getStatusColor(finderResult.status || "unknown")}`}>
                             <div className="font-semibold capitalize mb-1">
@@ -506,7 +657,7 @@ export default function EmailFinderPage() {
                         transition={{ delay: idx * 0.1 }}
                         className="flex items-start gap-2"
                       >
-                        <span className="text-cyan-500 mt-0.5">•</span>
+                        <span className="text-cyan-500 mt-0.5">-</span>
                         <span>{tip}</span>
                       </motion.li>
                     ))}
@@ -537,6 +688,22 @@ export default function EmailFinderPage() {
                       onChange={(e) => setVerifierEmail(e.target.value)}
                       placeholder="john.doe@example.com"
                     />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setVerifierEmail("")}
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setVerifierEmail("sarah.lee@acme.com")}
+                      >
+                        Try sample
+                      </Button>
+                    </div>
                     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                       <Button
                         type="submit"
@@ -646,6 +813,30 @@ export default function EmailFinderPage() {
                         </motion.button>
                       )}
                     </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <input
+                        ref={bulkFileRef}
+                        type="file"
+                        accept=".csv,.txt"
+                        className="hidden"
+                        onChange={(event) => handleBulkFileImport(event.target.files?.[0] || null)}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => bulkFileRef.current?.click()}
+                      >
+                        Upload CSV or TXT
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handlePasteFromClipboard}
+                      >
+                        Paste from clipboard
+                      </Button>
+                      <span>We will extract any emails from the file.</span>
+                    </div>
                     <Textarea
                       value={bulkEmails}
                       onChange={(e) => setBulkEmails(e.target.value)}
@@ -653,6 +844,26 @@ export default function EmailFinderPage() {
                       placeholder="john.doe@example.com&#10;jane.smith@example.com&#10;..."
                       helperText={`${emailCount} emails entered (max 100)`}
                     />
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setBulkEmails("")}
+                      >
+                        Clear list
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          setBulkEmails(
+                            ["sarah.lee@acme.com", "tony@northwind.io", "maria@contoso.com"].join("\n")
+                          )
+                        }
+                      >
+                        Load sample
+                      </Button>
+                    </div>
                     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                       <Button
                         type="submit"
@@ -680,6 +891,37 @@ export default function EmailFinderPage() {
                       animate={{ opacity: 1, y: 0 }}
                       className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800"
                     >
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                        {["valid", "risky", "invalid", "unknown"].map((status) => (
+                          <div
+                            key={status}
+                            className={`rounded-xl border px-3 py-2 text-xs ${getStatusColor(status)}`}
+                          >
+                            <div className="font-semibold capitalize">{status}</div>
+                            <div className="text-sm font-bold">{bulkSummary[status] || 0}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/40 p-4 mb-4">
+                        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
+                          <span>Deliverability snapshot</span>
+                          <span>{bulkTotal} verified</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                          <div
+                            className="h-2 bg-emerald-500"
+                            style={{ width: `${bulkValidRate}%` }}
+                          />
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-xs">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                            {bulkValidRate}% deliverable
+                          </span>
+                          <span className="text-amber-600 dark:text-amber-400">
+                            {bulkRiskRate}% risky
+                          </span>
+                        </div>
+                      </div>
                       <h4 className="text-sm font-bold text-slate-900 dark:text-slate-50 mb-4">
                         Results ({bulkResults.length})
                       </h4>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileText, Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { apiClient } from "@/lib/api";
@@ -18,11 +18,7 @@ export function DossierCard({ leadId, leadName }: DossierCardProps) {
   const [generating, setGenerating] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  useEffect(() => {
-    loadDossier();
-  }, [leadId]);
-
-  const loadDossier = async () => {
+  const loadDossier = useCallback(async () => {
     try {
       setLoading(true);
       const data = await apiClient.getDossier(leadId);
@@ -38,7 +34,11 @@ export function DossierCard({ leadId, leadName }: DossierCardProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [leadId]);
+
+  useEffect(() => {
+    loadDossier();
+  }, [leadId, loadDossier]);
 
   const generateDossier = async () => {
     try {
@@ -63,7 +63,7 @@ export function DossierCard({ leadId, leadName }: DossierCardProps) {
             clearInterval(pollInterval);
             setGenerating(false);
           }
-        }, 2000);
+        }, 8000);
         // Timeout after 60 seconds
         setTimeout(() => {
           clearInterval(pollInterval);

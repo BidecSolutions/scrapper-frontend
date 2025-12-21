@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { apiClient, API_URL, type Job, type Lead } from "@/lib/api";
+import { Input } from "@/components/ui/Input";
+import { apiClient, API_URL, type Job, type Lead, type JobLog } from "@/lib/api";
 import { LeadRow } from "@/components/leads/LeadRow";
 import { LeadDetailPanel } from "@/components/leads/LeadDetailPanel";
 import { AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, Download, RefreshCw } from "lucide-react";
+import { ArrowLeft, Download, RefreshCw, Copy } from "lucide-react";
 import { StatusChip } from "@/components/jobs/StatusChip";
 import { useJobPolling } from "@/hooks/useJobPolling";
 import { JobTimeline } from "@/components/jobs/JobTimeline";
@@ -21,16 +21,20 @@ import { ClickableStat } from "@/components/ui/ClickableStat";
 import { CoverageBar } from "@/components/jobs/CoverageBar";
 import { AICopilot } from "@/components/ai/AICopilot";
 import { SegmentCard } from "@/components/jobs/SegmentCard";
+import { useToast } from "@/components/ui/Toast";
 
 export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
   const jobId = parseInt(params.id as string);
+  const { showToast } = useToast();
   
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [exporting, setExporting] = useState(false);
   
   // Use the polling hook for job updates
   const { job, loading: jobLoading, error: jobError } = useJobPolling(jobId, 3000);
@@ -45,11 +49,23 @@ export default function JobDetailPage() {
     }
   }, [job, jobError]);
 
+  const loadLeads = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await apiClient.getJobLeads(jobId);
+      setLeads(data);
+    } catch (error) {
+      console.error("Failed to load leads:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [jobId]);
+
   useEffect(() => {
     if (jobId) {
       loadLeads();
     }
-  }, [jobId]);
+  }, [jobId, loadLeads]);
 
   // Poll for leads updates if job is running
   useEffect(() => {
@@ -62,23 +78,109 @@ export default function JobDetailPage() {
     }, 3000); // Poll every 3 seconds
 
     return () => clearInterval(interval);
-  }, [job, jobId]);
-
-  const loadLeads = async () => {
-    try {
-      setLoading(true);
-      const data = await apiClient.getJobLeads(jobId);
-      setLeads(data);
-    } catch (error) {
-      console.error("Failed to load leads:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [job, loadLeads]);
 
   const handleLeadClick = (lead: Lead) => {
     setSelectedLead(lead);
     setIsPanelOpen(true);
+  };
+
+  const handleRetry = async () => {
+    try {
+      setRetrying(true);
+      await apiClient.retryJob(jobId);
+      showToast({
+        type: "success",
+        title: "Job retried",
+        message: "The job has been queued for rerun.",
+      });
+    } catch (error: any) {
+      showToast({
+        type: "error",
+        title: "Retry failed",
+        message: error?.response?.data?.detail || "Unable to retry this job.",
+      });
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const handleExport = () => {
+    if (!leads.length) {
+      showToast({
+        type: "error",
+        title: "No leads to export",
+        message: "This job has no leads yet.",
+      });
+      return;
+    }
+    setExporting(true);
+    const headers = ["name", "email", "phone", "website", "company", "country"];
+    const rows = [
+      headers,
+      ...leads.map((lead) => [
+        lead.name || "",
+        lead.emails?.[0] || "",
+        lead.phones?.[0] || "",
+        lead.website || "",
+        lead.company_name || "",
+        lead.country || "",
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `job_${jobId}_leads.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setExporting(false);
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      showToast({
+        type: "success",
+        title: "Link copied",
+        message: "Job link copied to clipboard.",
+      });
+    } catch {
+      showToast({
+        type: "error",
+        title: "Copy failed",
+        message: "Could not copy the job link.",
+      });
+    }
+  };
+
+  const handleCopyLeadEmails = async () => {
+    const emails = leads
+      .flatMap((lead) => lead.emails || [])
+      .filter(Boolean);
+    if (emails.length === 0) {
+      showToast({
+        type: "info",
+        title: "No emails found",
+        message: "No lead emails available for this job.",
+      });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(Array.from(new Set(emails)).join("\n"));
+      showToast({
+        type: "success",
+        title: "Emails copied",
+        message: `Copied ${emails.length} emails.`,
+      });
+    } catch {
+      showToast({
+        type: "error",
+        title: "Copy failed",
+        message: "Could not copy emails.",
+      });
+    }
   };
 
   const stats = {
@@ -107,10 +209,18 @@ export default function JobDetailPage() {
           onClick={() => router.push("/jobs")}
           className="mb-4 text-xs text-slate-400 hover:text-slate-200"
         >
-          ← Back to Jobs
+          Back to Jobs
         </button>
         <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100">
-          {jobError || "Job not found"}
+          <div className="flex items-center justify-between">
+            <span>{jobError || "Job not found"}</span>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-3 py-1.5 rounded-lg border border-red-500/40 text-red-100 hover:bg-red-500/20"
+            >
+              Try again
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -124,7 +234,7 @@ export default function JobDetailPage() {
           onClick={() => router.push("/jobs")}
           className="mb-4 text-xs text-slate-400 hover:text-slate-200"
         >
-          ← Back to Jobs
+          Back to Jobs
         </button>
         <div className="rounded-2xl border border-amber-500/40 bg-amber-950/40 p-4 text-sm text-amber-100">
           Job not found. Please check the job ID: {jobId}
@@ -143,7 +253,7 @@ export default function JobDetailPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/jobs">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" aria-label="Back to jobs">
                 <ArrowLeft className="w-4 h-4" />
               </Button>
             </Link>
@@ -158,13 +268,21 @@ export default function JobDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleRetry} disabled={retrying}>
               <RefreshCw className="w-4 h-4 mr-2" />
-              Rerun
+              {retrying ? "Rerunning..." : "Rerun"}
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleCopyLeadEmails} disabled={leads.length === 0}>
+              <Copy className="w-4 h-4 mr-2" />
+              Copy emails
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleCopyLink}>
+              <Copy className="w-4 h-4 mr-2" />
+              Copy link
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
               <Download className="w-4 h-4 mr-2" />
-              Export
+              {exporting ? "Exporting..." : "Export"}
             </Button>
           </div>
         </div>
@@ -236,7 +354,7 @@ function OverviewTab({ job, stats, leads }: { job: Job; stats: any; leads: Lead[
               value={job.processed_targets || 0}
               max={job.total_targets}
               showCountdown={true}
-              startedAt={job.started_at}
+              startedAt={job.started_at ?? undefined}
             />
           </div>
           <JobTimeline status={job.status} />
@@ -281,7 +399,7 @@ function OverviewTab({ job, stats, leads }: { job: Job; stats: any; leads: Lead[
                   const elapsed = Math.round((Date.now() - new Date(job.started_at).getTime()) / 1000);
                   return elapsed < 60 ? `${elapsed}s` : `${Math.round(elapsed / 60)}m`;
                 })()
-              : "—"
+              : "-"
           }
         />
       </div>
@@ -380,12 +498,12 @@ function LeadsPreview({ jobId }: { jobId: number }) {
           }}
           className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
         >
-          View all leads →
+          View all leads
         </button>
       </div>
 
       {loadingLeads && (
-        <p className="text-xs text-slate-400">Loading leads…</p>
+        <p className="text-xs text-slate-400">Loading leads...</p>
       )}
 
       {!loadingLeads && previewLeads.length === 0 && (
@@ -417,12 +535,12 @@ function LeadsPreview({ jobId }: { jobId: number }) {
               <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-400">
                 {lead.emails && lead.emails.length > 0 && (
                   <span className="flex items-center gap-1">
-                    📧 <span className="truncate max-w-[150px]">{lead.emails[0]}</span>
+                    Email: <span className="truncate max-w-[150px]">{lead.emails[0]}</span>
                   </span>
                 )}
                 {lead.phones && lead.phones.length > 0 && (
                   <span className="flex items-center gap-1">
-                    📞 <span>{lead.phones[0]}</span>
+                    Phone: <span>{lead.phones[0]}</span>
                   </span>
                 )}
               </div>
@@ -486,7 +604,7 @@ function AIInsightsCard({ job }: { job: Job }) {
           {aiLoading ? (
             <>
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-              Generating…
+              Generating...
             </>
           ) : aiStatus === "ready" ? (
             <>Regenerate</>
@@ -505,14 +623,14 @@ function AIInsightsCard({ job }: { job: Job }) {
 
       {isCompleted && aiStatus === "idle" && !aiLoading && (
         <p className="text-xs text-slate-500">
-          Click "Generate summary" to analyze these leads with AI.
+          Click &quot;Generate summary&quot; to analyze these leads with AI.
         </p>
       )}
 
       {isCompleted && (aiStatus === "running" || aiLoading) && (
         <div className="flex items-center gap-2 text-xs text-slate-300">
           <span className="h-3 w-3 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-          AI is analyzing your leads… this may take a few seconds.
+          AI is analyzing your leads... this may take a few seconds.
         </div>
       )}
 
@@ -652,14 +770,14 @@ function AiSegmentCard({
             disabled={creatingView || creatingPlaybook}
             className="inline-flex flex-1 items-center justify-center gap-1 rounded-full border border-slate-700 px-2 py-1 text-[11px] font-medium text-slate-100 hover:border-cyan-500 hover:text-cyan-300 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500 transition-colors"
           >
-            {creatingView ? "Creating view…" : "Save as view"}
+            {creatingView ? "Creating view..." : "Save as view"}
           </button>
           <button
             onClick={handleCreatePlaybook}
             disabled={creatingPlaybook || creatingView}
             className="inline-flex flex-1 items-center justify-center gap-1 rounded-full bg-cyan-500/90 px-2 py-1 text-[11px] font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300 transition-colors"
           >
-            {creatingPlaybook ? "Creating…" : "Create playbook"}
+            {creatingPlaybook ? "Creating..." : "Create playbook"}
           </button>
         </div>
         {localError && (
@@ -693,7 +811,7 @@ function LeadsTab({
           <p className="text-slate-400 mb-2">No leads found for this job yet.</p>
           {job.error_message && (
             <div className="mt-4 p-4 rounded-lg border border-amber-500/30 bg-amber-500/10 max-w-2xl mx-auto">
-              <p className="text-sm text-amber-300 font-medium mb-1">⚠️ Issue:</p>
+              <p className="text-sm text-amber-300 font-medium mb-1">Issue:</p>
               <p className="text-xs text-amber-200/80">{job.error_message}</p>
             </div>
           )}
@@ -737,11 +855,7 @@ function InsightsTab({ jobId }: { jobId: number }) {
   const [insights, setInsights] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadInsights();
-  }, [jobId]);
-
-  const loadInsights = async () => {
+  const loadInsights = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/jobs/${jobId}/insights`);
       if (response.ok) {
@@ -753,7 +867,11 @@ function InsightsTab({ jobId }: { jobId: number }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [jobId]);
+
+  useEffect(() => {
+    loadInsights();
+  }, [loadInsights]);
 
   const suggestions = [
     "Which 10 leads should I prioritize?",
@@ -811,9 +929,102 @@ function InsightsTab({ jobId }: { jobId: number }) {
 }
 
 function ActivityTab({ jobId }: { jobId: number }) {
+  const [logs, setLogs] = useState<JobLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+
+  const loadLogs = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await apiClient.getJobLogs(jobId);
+      setLogs(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || "Failed to load logs.");
+    } finally {
+      setLoading(false);
+    }
+  }, [jobId]);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
+
+  const typeOptions = useMemo(() => {
+    const types = Array.from(new Set(logs.map((log) => log.activity_type).filter(Boolean)));
+    return ["all", ...types];
+  }, [logs]);
+
+  const filteredLogs = logs.filter((log) => {
+    if (typeFilter !== "all" && log.activity_type !== typeFilter) return false;
+    if (!query.trim()) return true;
+    const haystack = `${log.activity_type} ${log.description}`.toLowerCase();
+    return haystack.includes(query.trim().toLowerCase());
+  });
+
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-8 text-center">
-      <p className="text-slate-400">Activity timeline will appear here.</p>
+    <div className="space-y-4">
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <div className="flex-1">
+            <Input
+              label="Search activity"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search by type or description"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {typeOptions.map((type) => (
+              <button
+                key={type}
+                onClick={() => setTypeFilter(type)}
+                className={`px-3 py-1.5 rounded-full text-[11px] font-medium border transition-colors ${
+                  typeFilter === type
+                    ? "bg-cyan-500/10 text-cyan-300 border-cyan-500/40"
+                    : "bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500"
+                }`}
+              >
+                {type === "all" ? "All" : type}
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" onClick={loadLogs} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-800 text-xs text-slate-400">
+          {filteredLogs.length} events
+        </div>
+        {loading ? (
+          <div className="p-6 text-center text-slate-400">Loading activity...</div>
+        ) : error ? (
+          <div className="p-6 text-center text-rose-300">{error}</div>
+        ) : filteredLogs.length === 0 ? (
+          <div className="p-6 text-center text-slate-400">No activity matches your filters.</div>
+        ) : (
+          <div className="divide-y divide-slate-800">
+            {filteredLogs.map((log) => (
+              <div key={log.id} className="px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-slate-400">
+                    {log.created_at ? new Date(log.created_at).toLocaleString() : "-"}
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-800 text-slate-200">
+                    {log.activity_type}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-100 mt-1">{log.description}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -858,4 +1069,3 @@ function StatChip({
     </motion.div>
   );
 }
-

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
@@ -20,6 +20,7 @@ import {
   FileText,
   RefreshCw,
   Eye,
+  Search,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MetricCard } from "@/components/ui/metrics";
@@ -51,28 +52,12 @@ export default function VerificationPage() {
   const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
   const [creatingJob, setCreatingJob] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<"all" | "leads" | "csv">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sla, setSla] = useState<any | null>(null);
+  const csvFileRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    loadJobs();
-  }, []);
-
-  useEffect(() => {
-    const hasRunningJobs = jobs.some(
-      (j) => j.status === "running" || j.status === "pending"
-    );
-    
-    if (!hasRunningJobs) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      loadJobs();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [jobs]);
-
-  const loadJobs = async () => {
+  const loadJobs = useCallback(async () => {
     try {
       if (jobs.length === 0) {
         setLoading(true);
@@ -89,11 +74,44 @@ export default function VerificationPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [jobs.length, showToast, statusFilter]);
+
+  const loadSla = useCallback(async () => {
+    try {
+      const data = await apiClient.getVerificationSla();
+      setSla(data);
+    } catch (error) {
+      console.error("Failed to load verification SLA:", error);
+    }
+  }, []);
 
   useEffect(() => {
     loadJobs();
-  }, [statusFilter]);
+    loadSla();
+  }, [loadJobs, loadSla]);
+
+  // SLA already loaded with jobs
+
+  useEffect(() => {
+    const hasRunningJobs = jobs.some(
+      (j) => j.status === "running" || j.status === "pending"
+    );
+    
+    if (!hasRunningJobs) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      loadJobs();
+      loadSla();
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [jobs, loadJobs, loadSla]);
+
+  useEffect(() => {
+    loadJobs();
+  }, [statusFilter, loadJobs]);
 
   const handleApplyView = (view: SavedView) => {
     if (view.filters.status) {
@@ -210,10 +228,59 @@ export default function VerificationPage() {
   const totalVerified = jobs.reduce((sum, j) => sum + j.valid_count + j.invalid_count + j.risky_count + j.unknown_count, 0);
   const totalValid = jobs.reduce((sum, j) => sum + j.valid_count, 0);
   const totalInvalid = jobs.reduce((sum, j) => sum + j.invalid_count, 0);
+  const totalRisky = jobs.reduce((sum, j) => sum + j.risky_count, 0);
+  const totalUnknown = jobs.reduce((sum, j) => sum + j.unknown_count, 0);
   const validPct = totalVerified > 0 ? `${Math.round((totalValid / totalVerified) * 100)}%` : "0%";
   const invalidPct = totalVerified > 0 ? `${Math.round((totalInvalid / totalVerified) * 100)}%` : "0%";
+  const riskyPct = totalVerified > 0 ? `${Math.round((totalRisky / totalVerified) * 100)}%` : "0%";
+  const unknownPct = totalVerified > 0 ? `${Math.round((totalUnknown / totalVerified) * 100)}%` : "0%";
+  const avgJobSize = jobs.length > 0 ? Math.round(totalVerified / jobs.length) : 0;
 
-  const filteredJobs = statusFilter ? jobs.filter(j => j.status === statusFilter) : jobs;
+  const parseEmailsFromText = (text: string) => {
+    const regex = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+    const matches = text.match(regex) || [];
+    return Array.from(new Set(matches.map((email) => email.toLowerCase())));
+  };
+
+  const handleCsvFileImport = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const emails = parseEmailsFromText(text);
+      if (emails.length === 0) {
+        showToast({
+          type: "info",
+          title: "No emails found",
+          message: "We could not find any emails in that file.",
+        });
+        return;
+      }
+      setCsvEmails(emails.join("\n"));
+      showToast({
+        type: "success",
+        title: "CSV imported",
+        message: `Loaded ${emails.length} emails from ${file.name}`,
+      });
+    } catch {
+      showToast({
+        type: "error",
+        title: "Import failed",
+        message: "Could not read that file. Please try again.",
+      });
+    } finally {
+      if (csvFileRef.current) {
+        csvFileRef.current.value = "";
+      }
+    }
+  };
+
+  const filteredJobs = jobs.filter((job) => {
+    if (statusFilter && job.status !== statusFilter) return false;
+    if (sourceFilter !== "all" && job.source_type !== sourceFilter) return false;
+    if (!searchQuery.trim()) return true;
+    const haystack = `${job.source_description || ""} ${job.source_type} ${job.id}`.toLowerCase();
+    return haystack.includes(searchQuery.trim().toLowerCase());
+  });
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -255,6 +322,109 @@ export default function VerificationPage() {
             <MetricCard label="Total Verified" value={totalVerified} tone="info" icon={CheckCircle2} />
             <MetricCard label="Valid Rate" value={validPct} tone="success" icon={CheckCircle2} />
             <MetricCard label="Invalid Rate" value={invalidPct} tone="danger" icon={XCircle} />
+          </motion.section>
+
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.03 }}
+            className="grid grid-cols-1 sm:grid-cols-4 gap-4"
+          >
+            <MetricCard label="Risky Rate" value={riskyPct} tone="warning" icon={AlertCircle} />
+            <MetricCard label="Unknown Rate" value={unknownPct} tone="default" icon={AlertCircle} />
+            <MetricCard label="Avg Job Size" value={avgJobSize} tone="info" icon={FileText} />
+            <MetricCard label="Valid Emails" value={totalValid} tone="success" icon={Mail} />
+          </motion.section>
+
+          {sla && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="grid grid-cols-1 sm:grid-cols-4 gap-4"
+            >
+              <MetricCard label="Pending Jobs" value={sla.pending_jobs} tone="warning" icon={AlertCircle} />
+              <MetricCard label="Pending Emails" value={sla.pending_emails} tone="warning" icon={Mail} />
+              <MetricCard label="Avg Age (hrs)" value={sla.avg_pending_age_hours} tone="info" icon={RefreshCw} />
+              <MetricCard label="Oldest (hrs)" value={sla.oldest_pending_age_hours} tone="danger" icon={AlertCircle} />
+            </motion.section>
+          )}
+
+          {sla?.by_source?.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.08 }}
+              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50">
+                  Success Rate by Source (Last 30 days)
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-slate-500 dark:text-slate-400">
+                      <th className="py-2">Source</th>
+                      <th className="py-2">Total</th>
+                      <th className="py-2">Valid</th>
+                      <th className="py-2">Success Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sla.by_source.map((row: any) => (
+                      <tr key={row.source_type} className="border-t border-slate-200/50 dark:border-slate-800/50">
+                        <td className="py-2 font-medium text-slate-700 dark:text-slate-300">
+                          {row.source_type}
+                        </td>
+                        <td className="py-2 text-slate-600 dark:text-slate-400">{row.total}</td>
+                        <td className="py-2 text-slate-600 dark:text-slate-400">{row.valid}</td>
+                        <td className="py-2 text-slate-700 dark:text-slate-300">
+                          {row.success_rate}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </motion.section>
+          )}
+
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.09 }}
+            className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-4 shadow-xl"
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex-1 min-w-[220px]">
+                <Input
+                  label="Search jobs"
+                  icon={Search}
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search by source or job id"
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {(["all", "leads", "csv"] as const).map((source) => (
+                  <motion.button
+                    key={source}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setSourceFilter(source)}
+                    className={`px-4 py-2 text-xs rounded-lg font-medium transition-all ${
+                      sourceFilter === source
+                        ? "bg-cyan-500/20 text-cyan-400 border-2 border-cyan-500/40 shadow-lg"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    {source === "all" ? "All sources" : source.toUpperCase()}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
           </motion.section>
 
           {/* Status Filters */}
@@ -310,7 +480,7 @@ export default function VerificationPage() {
                   No verification jobs yet
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 max-w-md mx-auto">
-                  Start by uploading a CSV or selecting leads to verify. We'll track each job here with status, progress, and results.
+                  Start by uploading a CSV or selecting leads to verify. We&apos;ll track each job here with status, progress, and results.
                 </p>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <Button
@@ -456,7 +626,7 @@ export default function VerificationPage() {
                   onClick={() => setShowNewJobModal(false)}
                   className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none"
                 >
-                  ×
+                  x
                 </motion.button>
               </div>
 
@@ -549,6 +719,23 @@ export default function VerificationPage() {
                     exit={{ opacity: 0, x: 10 }}
                     className="space-y-4"
                   >
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <input
+                        ref={csvFileRef}
+                        type="file"
+                        accept=".csv,.txt"
+                        className="hidden"
+                        onChange={(event) => handleCsvFileImport(event.target.files?.[0] || null)}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => csvFileRef.current?.click()}
+                      >
+                        Upload CSV or TXT
+                      </Button>
+                      <span>We will extract any emails from the file.</span>
+                    </div>
                     <Textarea
                       label="Email Addresses"
                       value={csvEmails}

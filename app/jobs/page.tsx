@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, Plus, Search } from "lucide-react";
+import { AlertTriangle, Plus, Search, X, ExternalLink, Calendar, Download, Copy } from "lucide-react";
 import Link from "next/link";
-import { apiClient, type Job, type JobStatus, type SavedView, type LlmHealth } from "@/lib/api";
-import { CommandPalette } from "@/components/ui/CommandPalette";
+import { apiClient, type Job, type JobStatus, type SavedView, type LlmHealth, type JobLog } from "@/lib/api";
 import { SavedViewsBar } from "@/components/saved-views/SavedViewsBar";
 import { useJobsPolling } from "@/hooks/useJobsPolling";
+import { useToast } from "@/components/ui/Toast";
 
 type JobStatusType = JobStatus | "all";
 
@@ -109,26 +109,142 @@ function formatDate(dateString: string): string {
   return `${diffDays}d ago`;
 }
 
+function formatDateTime(dateString?: string | null): string {
+  if (!dateString) return "-";
+  const date = new Date(dateString);
+  return date.toLocaleString();
+}
+
+function getJobError(job: Job): string | null {
+  const candidates = [
+    job.error_message,
+    job.error,
+    job.ai_error,
+    job.failure_reason,
+    job.last_error,
+  ];
+  for (const value of candidates) {
+    if (!value) continue;
+    if (typeof value === "string") return value;
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return null;
+}
+
+function getRetryHint(error: string | null): string {
+  if (!error) return "Retry after updating inputs or reducing the scope.";
+  const lowered = error.toLowerCase();
+  if (lowered.includes("timeout")) {
+    return "Consider reducing the number of sites or narrowing the niche.";
+  }
+  if (lowered.includes("rate limit") || lowered.includes("429")) {
+    return "Wait a few minutes and retry, or lower the crawl volume.";
+  }
+  if (lowered.includes("auth") || lowered.includes("permission")) {
+    return "Check credentials and workspace permissions before retrying.";
+  }
+  return "Retry after updating inputs or reducing the scope.";
+}
+
 export default function JobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<JobStatusType>("all");
-  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [llmHealth, setLlmHealth] = useState<LlmHealth | null>(null);
   const [llmHealthError, setLlmHealthError] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<number | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [logsByJob, setLogsByJob] = useState<Record<number, JobLog[]>>({});
+  const [logsLoading, setLogsLoading] = useState<number | null>(null);
+  const [logsError, setLogsError] = useState<string | null>(null);
+  const [jobLeads, setJobLeads] = useState<Record<number, any[]>>({});
+  const [resultsLoading, setResultsLoading] = useState<number | null>(null);
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduleCadence, setScheduleCadence] = useState("weekly");
+  const [scheduleTime, setScheduleTime] = useState("09:00");
+  const { showToast } = useToast();
 
   // Use the polling hook - handles loading, error, and polling automatically
   const { jobs, loading, error } = useJobsPolling(5000);
   
-  // Debug logging - helps identify the issue
-  useEffect(() => {
-    console.log("[JobsPage] Render state:", { 
-      jobsCount: jobs.length, 
-      loading, 
-      error,
-      jobsIsArray: Array.isArray(jobs),
-      jobsSample: jobs.length > 0 ? jobs[0] : null
-    });
-  }, [jobs, loading, error]);
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  };
+
+  const handleExportJobs = () => {
+    if (filteredJobs.length === 0) {
+      showToast({
+        type: "error",
+        title: "No jobs to export",
+        message: "No jobs match the current filters.",
+      });
+      return;
+    }
+    const headers = [
+      "id",
+      "niche",
+      "location",
+      "status",
+      "leads",
+      "sites",
+      "processed_targets",
+      "total_targets",
+      "created_at",
+    ];
+    const rows = [
+      headers,
+      ...filteredJobs.map((job) => [
+        String(job.id),
+        job.niche || "",
+        job.location || "",
+        job.status || "",
+        String(job.result_count || 0),
+        String(job.sites_crawled || 0),
+        String(job.processed_targets || 0),
+        String(job.total_targets || 0),
+        job.created_at || "",
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `jobs_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyJobLinks = async () => {
+    if (filteredJobs.length === 0) {
+      showToast({
+        type: "info",
+        title: "No jobs to copy",
+        message: "No jobs match the current filters.",
+      });
+      return;
+    }
+    const baseUrl = window.location.origin;
+    const links = filteredJobs.map((job) => `${baseUrl}/jobs/${job.id}`);
+    try {
+      await navigator.clipboard.writeText(links.join("\n"));
+      showToast({
+        type: "success",
+        title: "Links copied",
+        message: `Copied ${links.length} job links.`,
+      });
+    } catch {
+      showToast({
+        type: "error",
+        title: "Copy failed",
+        message: "Could not copy job links.",
+      });
+    }
+  };
 
   // Fetch LLM diagnostics once on mount
   useEffect(() => {
@@ -151,21 +267,6 @@ export default function JobsPage() {
     };
   }, []);
 
-  // Command palette keyboard shortcut
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setCommandPaletteOpen(true);
-      }
-      if (e.key === "Escape") {
-        setCommandPaletteOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
 
   const handleApplyView = (view: SavedView) => {
     if (view.filters.search) {
@@ -180,22 +281,90 @@ export default function JobsPage() {
     }
   };
 
-  // Jobs are already normalized by useJobsPolling hook, but add defensive check
-  const normalizedJobs: Job[] = Array.isArray(jobs) ? jobs : [];
+  const normalizedJobs: Job[] = useMemo(() => (Array.isArray(jobs) ? jobs : []), [jobs]);
+  const searchTerm = searchQuery.trim().toLowerCase();
 
-  const filteredJobs = normalizedJobs.filter((job) => {
-    const matchesSearch =
-      job.niche?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (job.location && job.location.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesStatus = statusFilter === "all" || job.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredJobs = useMemo(() => {
+    return normalizedJobs.filter((job) => {
+      const matchesSearch =
+        !searchTerm ||
+        job.niche?.toLowerCase().includes(searchTerm) ||
+        (job.location && job.location.toLowerCase().includes(searchTerm));
+      const matchesStatus = statusFilter === "all" || job.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [normalizedJobs, searchTerm, statusFilter]);
 
-  const stats = {
-    total: normalizedJobs.length,
-    running: normalizedJobs.filter((j) => j.status === "running" || j.status === "ai_pending").length,
-    completed: normalizedJobs.filter((j) => j.status === "completed" || j.status === "completed_with_warnings").length,
-    failed: normalizedJobs.filter((j) => j.status === "failed").length,
+  const stats = useMemo(
+    () => ({
+      total: normalizedJobs.length,
+      running: normalizedJobs.filter((j) => j.status === "running" || j.status === "ai_pending").length,
+      completed: normalizedJobs.filter((j) => j.status === "completed" || j.status === "completed_with_warnings").length,
+      failed: normalizedJobs.filter((j) => j.status === "failed").length,
+    }),
+    [normalizedJobs]
+  );
+
+  // Fetch job logs when drawer opens
+  useEffect(() => {
+    const fetchLogs = async () => {
+      if (!selectedJob) return;
+      if (logsByJob[selectedJob.id]) return;
+      setLogsLoading(selectedJob.id);
+      setLogsError(null);
+      try {
+        const logs = await apiClient.getJobLogs(selectedJob.id);
+        setLogsByJob((prev) => ({ ...prev, [selectedJob.id]: logs }));
+      } catch (err: any) {
+        const msg = err?.response?.data?.detail || err?.message || "Failed to load activity.";
+        setLogsError(msg);
+      } finally {
+        setLogsLoading(null);
+      }
+    };
+    fetchLogs();
+  }, [selectedJob, logsByJob]);
+
+  const handleRetry = async (jobId: number) => {
+    try {
+      setRetryingId(jobId);
+      await apiClient.retryJob(jobId);
+      // light refresh to pick up new status
+      const isJSDOM = typeof navigator !== "undefined" && /jsdom/i.test(navigator.userAgent);
+      try {
+        if (!isJSDOM && typeof window !== "undefined" && window.location?.reload) {
+          window.location.reload();
+        }
+      } catch {
+        // ignore reload issues (e.g., in tests)
+      }
+    } catch (err: any) {
+      const message = err?.response?.data?.detail || err?.message || "Failed to retry job.";
+      alert(message);
+    } finally {
+      setRetryingId(null);
+    }
+  };
+
+  const handleLoadResults = async (jobId: number) => {
+    if (jobLeads[jobId]) return;
+    try {
+      setResultsLoading(jobId);
+      const data = await apiClient.getJobLeads(jobId);
+      setJobLeads((prev) => ({ ...prev, [jobId]: data || [] }));
+    } catch (err) {
+      // ignore
+    } finally {
+      setResultsLoading(null);
+    }
+  };
+
+  const handleSaveSchedule = () => {
+    showToast({
+      type: "success",
+      title: "Schedule saved",
+      message: `${scheduleCadence} at ${scheduleTime}. Backend scheduler coming next.`,
+    });
   };
 
   return (
@@ -222,7 +391,24 @@ export default function JobsPage() {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-2"
             >
+              <button
+                type="button"
+                onClick={handleCopyJobLinks}
+                className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copy links
+              </button>
+              <button
+                type="button"
+                onClick={handleExportJobs}
+                className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export CSV
+              </button>
               <Link href="/jobs/new">
                 <motion.button
                   whileHover={{ scale: 1.05, y: -2 }}
@@ -264,6 +450,17 @@ export default function JobsPage() {
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar px-6 pt-8 pb-12">
           <div className="max-w-7xl mx-auto space-y-6">
+            {error && (
+              <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100 flex items-center justify-between">
+                <span>Failed to load jobs. Please try again.</span>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-3 py-1.5 rounded-lg border border-rose-500/40 text-rose-100 hover:bg-rose-500/20"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
             {/* Stats row - Enhanced */}
             <motion.section
               initial={{ opacity: 0, y: 20 }}
@@ -274,6 +471,71 @@ export default function JobsPage() {
               <MetricCard label="Running" value={stats.running} tone="info" />
               <MetricCard label="Completed" value={stats.completed} tone="success" />
               <MetricCard label="Failed" value={stats.failed} tone="danger" />
+            </motion.section>
+
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="grid gap-4 md:grid-cols-2"
+            >
+              <div className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl space-y-3">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Job templates</h3>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {[
+                    { label: "Local services", niche: "dentist clinic", location: "New York" },
+                    { label: "Restaurants", niche: "restaurant", location: "Dubai" },
+                    { label: "SaaS leads", niche: "B2B SaaS", location: "" },
+                  ].map((preset) => (
+                    <Link
+                      key={preset.label}
+                      href={`/jobs/new?niche=${encodeURIComponent(preset.niche)}&location=${encodeURIComponent(preset.location)}`}
+                      className="px-3 py-2 rounded-full border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-cyan-400/60"
+                    >
+                      {preset.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-6 shadow-2xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-cyan-500" />
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Schedule</h3>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    onClick={() => setScheduleEnabled((value) => !value)}
+                    className={`px-3 py-1.5 rounded-full border ${
+                      scheduleEnabled
+                        ? "border-cyan-500/40 text-cyan-300 bg-cyan-500/10"
+                        : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400"
+                    }`}
+                  >
+                    {scheduleEnabled ? "Enabled" : "Disabled"}
+                  </button>
+                  <select
+                    value={scheduleCadence}
+                    onChange={(e) => setScheduleCadence(e.target.value)}
+                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 px-2 py-1"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                  <input
+                    type="time"
+                    value={scheduleTime}
+                    onChange={(e) => setScheduleTime(e.target.value)}
+                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 px-2 py-1"
+                  />
+                  <button
+                    onClick={handleSaveSchedule}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
             </motion.section>
 
           {/* Saved Views Bar */}
@@ -295,8 +557,22 @@ export default function JobsPage() {
                 placeholder="Search by niche or location..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                data-global-search="true"
                 className="bg-transparent border-0 outline-none text-xs flex-1 placeholder:text-slate-500 text-slate-200"
               />
+              <kbd className="px-2 py-0.5 text-[10px] rounded bg-slate-800 text-slate-400 border border-slate-700">
+                /
+              </kbd>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="text-slate-500 hover:text-slate-200"
+                  aria-label="Clear search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
             <div className="flex gap-2 text-[11px]">
               <FilterChip
@@ -319,6 +595,13 @@ export default function JobsPage() {
                 active={statusFilter === "failed"}
                 onClick={() => setStatusFilter("failed")}
               />
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="px-3 py-1 rounded-full border border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                Reset
+              </button>
             </div>
           </section>
 
@@ -339,16 +622,18 @@ export default function JobsPage() {
                     <th className="px-4 py-2 text-right font-medium">Leads</th>
                     <th className="px-4 py-2 text-right font-medium">Sites</th>
                     <th className="px-4 py-2 text-right font-medium">Created</th>
+                    <th className="px-4 py-2 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {error ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-red-400">
+                      <td colSpan={7} className="px-4 py-8 text-center text-red-400">
                         <div className="flex flex-col items-center gap-2">
                           <p>Failed to load jobs: {error}</p>
                           <button
                             onClick={() => window.location.reload()}
+                            aria-label="Reload page"
                             className="text-xs text-cyan-400 hover:text-cyan-300 underline"
                           >
                             Reload page
@@ -357,19 +642,40 @@ export default function JobsPage() {
                       </td>
                     </tr>
                   ) : loading && jobs.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                        Loading jobs...
-                      </td>
-                    </tr>
+                    Array.from({ length: 4 }).map((_, index) => (
+                      <tr key={`skeleton-${index}`} className="animate-pulse">
+                        <td className="px-4 py-4">
+                          <div className="h-4 w-32 rounded bg-slate-800/70" />
+                          <div className="mt-2 h-3 w-20 rounded bg-slate-800/50" />
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="h-4 w-16 rounded bg-slate-800/70" />
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="h-3 w-28 rounded bg-slate-800/60" />
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <div className="ml-auto h-3 w-10 rounded bg-slate-800/60" />
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <div className="ml-auto h-3 w-10 rounded bg-slate-800/60" />
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <div className="ml-auto h-3 w-14 rounded bg-slate-800/60" />
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <div className="ml-auto h-3 w-8 rounded bg-slate-800/60" />
+                        </td>
+                      </tr>
+                    ))
                   ) : filteredJobs.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                         {normalizedJobs.length === 0 ? (
                           <>
                             No jobs yet. Click{" "}
                             <Link href="/jobs/new" className="font-medium text-cyan-400 hover:text-cyan-300">
-                              "New Job"
+                              New Job
                             </Link>{" "}
                             to start a scrape or enrichment run.
                           </>
@@ -390,14 +696,12 @@ export default function JobsPage() {
                           className={`border-t border-slate-800 hover:bg-slate-900/70 transition-colors cursor-pointer ${
                             idx % 2 === 1 ? "bg-slate-900/40" : ""
                           }`}
-                          onClick={() => {
-                            window.location.href = `/jobs/${job.id}`;
-                          }}
+                          onClick={() => setSelectedJob(job)}
                         >
                           <td className="px-4 py-3">
                             <div className="font-semibold text-slate-100">
                               {job.niche}
-                              {job.location && ` • ${job.location}`}
+                              {job.location && ` - ${job.location}`}
                             </div>
                             <div className="text-[11px] text-slate-500 mt-0.5">
                               Job #{job.id}
@@ -434,6 +738,20 @@ export default function JobsPage() {
                           <td className="px-4 py-3 text-right text-slate-400">
                             {formatDate(job.created_at)}
                           </td>
+                          <td className="px-4 py-3 text-right">
+                            {(job.status === "failed" || job.status === "completed" || job.status === "cancelled") && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRetry(job.id);
+                                }}
+                                disabled={retryingId === job.id}
+                                className="text-[11px] px-3 py-1 rounded-full border border-slate-600 text-slate-100 hover:bg-slate-800 disabled:opacity-50"
+                              >
+                                {retryingId === job.id ? "Retrying..." : "Retry"}
+                              </button>
+                            )}
+                          </td>
                         </motion.tr>
                       ))}
                     </AnimatePresence>
@@ -445,11 +763,213 @@ export default function JobsPage() {
           </div>
         </main>
 
+        <AnimatePresence>
+          {selectedJob && (
+            <motion.div
+              className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedJob(null)}
+            >
+              <motion.div
+                initial={{ x: 80, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 80, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                className="absolute right-0 top-0 h-full w-full sm:w-[420px] bg-slate-950 text-slate-50 shadow-2xl border-l border-slate-800"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between p-5 border-b border-slate-800">
+                  <div>
+                    <p className="text-xs text-slate-400">Job #{selectedJob.id}</p>
+                    <h3 className="text-xl font-semibold mt-1 leading-tight">
+                      {selectedJob.niche} {selectedJob.location ? `- ${selectedJob.location}` : ""}
+                    </h3>
+                    <div className="mt-2">
+                      <StatusBadge status={selectedJob.status} />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedJob(null)}
+                    className="text-slate-400 hover:text-slate-100 rounded-full p-1 border border-slate-700"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="p-5 space-y-4 text-sm">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Timeline</p>
+                    <div className="mt-2 space-y-2 text-[12px] text-slate-200">
+                      <div className="flex items-center justify-between">
+                        <span>Created</span>
+                        <span className="text-slate-400">{formatDateTime(selectedJob.created_at)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Started</span>
+                        <span className="text-slate-400">{formatDateTime(selectedJob.started_at)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Completed</span>
+                        <span className="text-slate-400">{formatDateTime(selectedJob.completed_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Created</p>
+                      <p className="mt-1 font-semibold">{formatDateTime(selectedJob.created_at)}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Completed</p>
+                      <p className="mt-1 font-semibold">{formatDateTime(selectedJob.completed_at)}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Leads</p>
+                      <p className="mt-1 font-semibold">{(selectedJob.result_count || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Sites</p>
+                      <p className="mt-1 font-semibold">{(selectedJob.sites_crawled || 0).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Progress</p>
+                    <p className="mt-1 font-semibold">
+                      {selectedJob.processed_targets ?? 0}/{selectedJob.total_targets ?? 0} processed
+                    </p>
+                    {selectedJob.ai_status && (
+                      <p className="text-[11px] text-slate-400 mt-1">AI: {selectedJob.ai_status}</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Duration</p>
+                    <p className="mt-1 font-semibold">
+                      {(() => {
+                        const duration =
+                          selectedJob.duration_seconds ??
+                          (selectedJob.completed_at && selectedJob.started_at
+                            ? Math.round(
+                                (new Date(selectedJob.completed_at).getTime() - new Date(selectedJob.started_at).getTime()) /
+                                  1000
+                              )
+                            : null);
+                        if (!duration || duration < 0) return "-";
+                        if (duration < 60) return `${duration}s`;
+                        const mins = Math.floor(duration / 60);
+                        const secs = duration % 60;
+                        return `${mins}m ${secs}s`;
+                      })()}
+                    </p>
+                  </div>
+
+                  {selectedJob.ai_summary && (
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">AI Summary</p>
+                      <p className="mt-1 text-slate-100 text-sm leading-relaxed">{selectedJob.ai_summary}</p>
+                    </div>
+                  )}
+
+                  {(selectedJob.status === "failed" || getJobError(selectedJob)) && (
+                    <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-rose-200">Failure Details</p>
+                      <p className="mt-2 text-sm text-rose-100">
+                        {getJobError(selectedJob) || "Job failed without a detailed error message."}
+                      </p>
+                      <p className="mt-2 text-[11px] text-rose-200/80">
+                        Retry hint: {getRetryHint(getJobError(selectedJob))}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Activity</p>
+                      {logsLoading === selectedJob.id && <span className="text-[11px] text-slate-400">Loading...</span>}
+                      {logsError && <span className="text-[11px] text-rose-400">{logsError}</span>}
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-auto pr-1">
+                      {(logsByJob[selectedJob.id] || []).length === 0 && !logsLoading ? (
+                        <p className="text-[12px] text-slate-500">No activity yet.</p>
+                      ) : (
+                        (logsByJob[selectedJob.id] || []).map((log) => (
+                          <div key={log.id} className="border border-slate-800 rounded-lg px-3 py-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] text-slate-400">
+                                {log.created_at ? new Date(log.created_at).toLocaleString() : "-"}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-200 uppercase tracking-wide">
+                                {log.activity_type}
+                              </span>
+                            </div>
+                            <p className="text-sm text-slate-100 mt-1">{log.description}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Results explorer</p>
+                      <button
+                        onClick={() => handleLoadResults(selectedJob.id)}
+                        className="text-[11px] text-cyan-400"
+                      >
+                        {resultsLoading === selectedJob.id ? "Loading..." : "Load results"}
+                      </button>
+                    </div>
+                    {jobLeads[selectedJob.id] && jobLeads[selectedJob.id].length > 0 ? (
+                      <div className="space-y-2">
+                        {jobLeads[selectedJob.id].slice(0, 5).map((lead: any) => (
+                          <div key={lead.id} className="flex items-center justify-between text-xs text-slate-400">
+                            <span className="text-slate-100">{lead.name || "Unknown lead"}</span>
+                            <span>{lead.email || lead.emails?.[0] || "-"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[12px] text-slate-500">No results loaded.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="px-5 py-4 border-t border-slate-800 flex flex-wrap gap-2">
+                  <Link
+                    href={`/jobs/${selectedJob.id}`}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700 text-sm text-slate-100 hover:bg-slate-900"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open job page
+                  </Link>
+                  {(selectedJob.status === "failed" ||
+                    selectedJob.status === "completed" ||
+                    selectedJob.status === "cancelled") && (
+                    <button
+                      onClick={() => handleRetry(selectedJob.id)}
+                      disabled={retryingId === selectedJob.id}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-cyan-500 text-sm text-cyan-100 hover:bg-cyan-500/10 disabled:opacity-60"
+                    >
+                      {retryingId === selectedJob.id ? "Retrying..." : "Retry from here"}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setSelectedJob(null)}
+                    className="ml-auto text-sm text-slate-400 hover:text-slate-100"
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Command Palette */}
-        <CommandPalette
-          open={commandPaletteOpen}
-          onClose={() => setCommandPaletteOpen(false)}
-        />
       </div>
   );
 }

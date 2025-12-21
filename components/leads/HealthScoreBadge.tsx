@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Activity, 
@@ -29,15 +29,7 @@ export function HealthScoreBadge({
   const [loading, setLoading] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
 
-  useEffect(() => {
-    if (initialScore !== undefined) {
-      // If score is provided, we can show it but won't have breakdown
-      return;
-    }
-    loadHealthScore();
-  }, [leadId, initialScore]);
-
-  const loadHealthScore = async () => {
+  const loadHealthScore = useCallback(async () => {
     try {
       setLoading(true);
       const data = await apiClient.getLeadHealthScore(leadId);
@@ -47,7 +39,15 @@ export function HealthScoreBadge({
     } finally {
       setLoading(false);
     }
-  };
+  }, [leadId]);
+
+  useEffect(() => {
+    if (initialScore !== undefined) {
+      // If score is provided, we can show it but won't have breakdown
+      return;
+    }
+    loadHealthScore();
+  }, [initialScore, loadHealthScore]);
 
   const displayScore = healthScore?.score ?? initialScore ?? 0;
   const grade = healthScore?.grade ?? getGradeFromScore(displayScore);

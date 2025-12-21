@@ -231,7 +231,7 @@ export function LeadEmailsCard({
           </p>
           {contactName && emailDomain && (
             <p className="text-[10px] text-slate-600">
-              If we know their name and domain, you can try "Find email (AI)".
+              If we know their name and domain, you can try Find email (AI).
             </p>
           )}
         </div>
@@ -323,4 +323,3 @@ export function LeadEmailsCard({
     </div>
   );
 }
-

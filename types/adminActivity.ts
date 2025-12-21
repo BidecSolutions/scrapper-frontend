@@ -5,6 +5,7 @@ export type ActivityType =
   | "email_verified"
   | "lead_added_to_list"
   | "lead_removed_from_list"
+  | "lead_score_updated"
   | "campaign_created"
   | "campaign_sent"
   | "campaign_outcome_imported"

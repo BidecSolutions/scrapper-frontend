@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Download, ThumbsUp, ThumbsDown, Star, CheckCircle2 } from "lucide-react";
+import { X, Download, ThumbsUp, ThumbsDown, CheckCircle2, Sparkles, UserPlus, Tag, FileText, Sliders } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface BulkActionsToolbarProps {
@@ -10,7 +10,13 @@ interface BulkActionsToolbarProps {
   onMarkGood?: () => void;
   onMarkBad?: () => void;
   onExport?: () => void;
+  onAssignOwner?: () => void;
+  onAddTag?: () => void;
+  onExportTemplate?: () => void;
   onVerifyEmails?: () => void;
+  onEnrichLeads?: () => void;
+  onRetryEnrichment?: () => void;
+  onBulkEdit?: () => void;
 }
 
 export function BulkActionsToolbar({
@@ -19,7 +25,13 @@ export function BulkActionsToolbar({
   onMarkGood,
   onMarkBad,
   onExport,
+  onAssignOwner,
+  onAddTag,
+  onExportTemplate,
   onVerifyEmails,
+  onEnrichLeads,
+  onRetryEnrichment,
+  onBulkEdit,
 }: BulkActionsToolbarProps) {
   if (selectedCount === 0) return null;
 
@@ -72,6 +84,78 @@ export function BulkActionsToolbar({
             >
               <CheckCircle2 className="w-4 h-4 mr-1.5" />
               Verify emails
+            </Button>
+          )}
+
+          {onAssignOwner && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onAssignOwner}
+              className="text-slate-200 hover:text-white hover:bg-slate-700/40"
+            >
+              <UserPlus className="w-4 h-4 mr-1.5" />
+              Assign
+            </Button>
+          )}
+
+          {onBulkEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onBulkEdit}
+              className="text-slate-200 hover:text-white hover:bg-slate-700/40"
+            >
+              <Sliders className="w-4 h-4 mr-1.5" />
+              Bulk edit
+            </Button>
+          )}
+
+          {onAddTag && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onAddTag}
+              className="text-slate-200 hover:text-white hover:bg-slate-700/40"
+            >
+              <Tag className="w-4 h-4 mr-1.5" />
+              Tag
+            </Button>
+          )}
+
+          {onExportTemplate && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onExportTemplate}
+              className="text-slate-200 hover:text-white hover:bg-slate-700/40"
+            >
+              <FileText className="w-4 h-4 mr-1.5" />
+              Export template
+            </Button>
+          )}
+
+          {onEnrichLeads && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onEnrichLeads}
+              className="text-purple-300 hover:text-purple-200 hover:bg-purple-500/10"
+            >
+              <Sparkles className="w-4 h-4 mr-1.5" />
+              Enrich with AI
+            </Button>
+          )}
+
+          {onRetryEnrichment && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRetryEnrichment}
+              className="text-amber-300 hover:text-amber-200 hover:bg-amber-500/10"
+            >
+              <Sparkles className="w-4 h-4 mr-1.5" />
+              Retry failed
             </Button>
           )}
 

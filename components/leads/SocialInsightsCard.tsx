@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { TrendingUp, MessageSquare, Sparkles } from "lucide-react";
 import { apiClient } from "@/lib/api";
@@ -14,11 +14,7 @@ export function SocialInsightsCard({ leadId }: SocialInsightsCardProps) {
   const [insights, setInsights] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadInsights();
-  }, [leadId]);
-
-  const loadInsights = async () => {
+  const loadInsights = useCallback(async () => {
     try {
       setLoading(true);
       const data = await apiClient.getSocialInsights(leadId);
@@ -28,7 +24,11 @@ export function SocialInsightsCard({ leadId }: SocialInsightsCardProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [leadId]);
+
+  useEffect(() => {
+    loadInsights();
+  }, [loadInsights]);
 
   if (loading) {
     return (

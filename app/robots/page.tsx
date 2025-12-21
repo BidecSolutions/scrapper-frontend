@@ -2,15 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Bot, Plus, Loader2 } from "lucide-react";
+import { Bot, Plus, Loader2, Search } from "lucide-react";
 import { apiClient } from "@/lib/api";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Input } from "@/components/ui/Input";
 
 export default function RobotsPage() {
   const [robots, setRobots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"recent" | "runs">("recent");
+  const [recentOnly, setRecentOnly] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -38,6 +41,37 @@ export default function RobotsPage() {
   }
 
   const totalRuns = robots.reduce((sum, r) => sum + (r.runs_count || 0), 0);
+  const now = Date.now();
+  const last7DaysMs = 7 * 24 * 60 * 60 * 1000;
+  const getLastActivity = (robot: any) => {
+    const raw = robot.last_run_at || robot.updated_at || robot.created_at;
+    return raw ? new Date(raw).getTime() : 0;
+  };
+  const activeLast7Days = robots.filter((robot) => now - getLastActivity(robot) <= last7DaysMs).length;
+  const newThisWeek = robots.filter((robot) => {
+    if (!robot.created_at) return false;
+    return now - new Date(robot.created_at).getTime() <= last7DaysMs;
+  }).length;
+  const hasActivityTimestamps = robots.some((robot) => robot.last_run_at || robot.updated_at);
+  const filteredRobots = robots
+    .filter((robot) => {
+      if (!query.trim()) return true;
+      const haystack = `${robot.name || ""} ${robot.description || ""}`.toLowerCase();
+      return haystack.includes(query.trim().toLowerCase());
+    })
+    .filter((robot) => {
+      if (!recentOnly) return true;
+      if (!hasActivityTimestamps) {
+        return (robot.runs_count || 0) > 0;
+      }
+      return now - getLastActivity(robot) <= last7DaysMs;
+    })
+    .sort((a, b) => {
+      if (sortBy === "runs") {
+        return (b.runs_count || 0) - (a.runs_count || 0);
+      }
+      return getLastActivity(b) - getLastActivity(a);
+    });
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -64,26 +98,96 @@ export default function RobotsPage() {
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto px-6 pt-6 pb-10 space-y-4">
           <p className="text-[11px] text-slate-400">
-            {robots.length} robots • {totalRuns} total runs this week
+            {robots.length} robots - {totalRuns} total runs this week
           </p>
 
-          {robots.length === 0 ? (
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+              <p className="text-[11px] text-slate-400">Total Robots</p>
+              <p className="text-lg font-semibold text-slate-100">{robots.length}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+              <p className="text-[11px] text-slate-400">Total Runs</p>
+              <p className="text-lg font-semibold text-slate-100">{totalRuns}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+              <p className="text-[11px] text-slate-400">Active in 7 Days</p>
+              <p className="text-lg font-semibold text-slate-100">{activeLast7Days}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+              <p className="text-[11px] text-slate-400">New This Week</p>
+              <p className="text-lg font-semibold text-slate-100">{newThisWeek}</p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-wrap items-center gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <Input
+                label="Search robots"
+                icon={Search}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search by name or description"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className={`text-[11px] font-medium px-3 py-2 rounded-lg border transition-colors ${
+                  recentOnly
+                    ? "border-cyan-400/60 text-cyan-200 bg-cyan-500/10"
+                    : "border-slate-700 text-slate-300 hover:border-slate-500"
+                }`}
+                onClick={() => setRecentOnly((prev) => !prev)}
+                disabled={!hasActivityTimestamps && robots.length === 0}
+              >
+                Recent Activity
+              </button>
+              <button
+                className={`text-[11px] font-medium px-3 py-2 rounded-lg border transition-colors ${
+                  sortBy === "recent"
+                    ? "border-cyan-400/60 text-cyan-200 bg-cyan-500/10"
+                    : "border-slate-700 text-slate-300 hover:border-slate-500"
+                }`}
+                onClick={() => setSortBy("recent")}
+              >
+                Sort: Recent
+              </button>
+              <button
+                className={`text-[11px] font-medium px-3 py-2 rounded-lg border transition-colors ${
+                  sortBy === "runs"
+                    ? "border-cyan-400/60 text-cyan-200 bg-cyan-500/10"
+                    : "border-slate-700 text-slate-300 hover:border-slate-500"
+                }`}
+                onClick={() => setSortBy("runs")}
+              >
+                Sort: Runs
+              </button>
+            </div>
+          </section>
+
+          {filteredRobots.length === 0 ? (
             <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-xs text-slate-400 text-center">
               <Bot className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-              <p className="text-slate-100 mb-2 text-sm">No robots created yet</p>
-              <p className="mb-4">
-                Create your first AI-powered robot to extract custom data from websites
+              <p className="text-slate-100 mb-2 text-sm">
+                {robots.length === 0 ? "No robots created yet" : "No robots match your filters"}
               </p>
-              <Link href="/robots/new">
-                <button className="inline-flex items-center rounded-lg bg-cyan-500 hover:bg-cyan-400 text-xs font-medium px-4 py-2 shadow-sm transition-colors">
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Create Robot
-                </button>
-              </Link>
+              <p className="mb-4">
+                {robots.length === 0
+                  ? "Create your first AI-powered robot to extract custom data from websites"
+                  : "Try clearing filters or updating your search query."}
+              </p>
+              {robots.length === 0 && (
+                <Link href="/robots/new">
+                  <button className="inline-flex items-center rounded-lg bg-cyan-500 hover:bg-cyan-400 text-xs font-medium px-4 py-2 shadow-sm transition-colors">
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    Create Robot
+                  </button>
+                </Link>
+              )}
             </section>
           ) : (
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {robots.map((robot, idx) => (
+              {filteredRobots.map((robot, idx) => (
                 <motion.article
                   key={robot.id}
                   initial={{ opacity: 0, y: 10 }}
@@ -103,7 +207,7 @@ export default function RobotsPage() {
                         // TODO: Add menu
                       }}
                     >
-                      ⋮
+                      ...
                     </button>
                   </div>
                   {robot.description && (
@@ -122,7 +226,7 @@ export default function RobotsPage() {
                       router.push(`/robots/${robot.id}`);
                     }}
                   >
-                    ▶ View Robot
+                    View Robot
                   </button>
                 </motion.article>
               ))}

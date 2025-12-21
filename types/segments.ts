@@ -16,5 +16,6 @@ export interface SegmentLead {
   website?: string | null;
   quality_score?: number | null;
   source?: string | null;
+  email?: string | null;
 }
 

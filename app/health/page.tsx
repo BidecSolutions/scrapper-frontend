@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/lib/api";
 import type { HealthResponse } from "@/types/health";
 import { motion } from "framer-motion";
@@ -47,7 +47,7 @@ export default function HealthPage() {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await apiClient.getHealth(days);
@@ -57,11 +57,11 @@ export default function HealthPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [days]);
 
   useEffect(() => {
     load();
-  }, [days]);
+  }, [load]);
 
   function getHealthScoreColor(score: number): string {
     if (score >= 80) return "text-emerald-400";

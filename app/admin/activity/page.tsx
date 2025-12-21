@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api";
 import type { AdminActivityItem, ActivityType } from "@/types/adminActivity";
 import { MetricCard } from "@/components/ui/metrics";
@@ -18,6 +18,33 @@ export default function AdminActivityPage() {
   const [typeFilter, setTypeFilter] = useState<ActivityTypeFilter>("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [since, setSince] = useState("");
+  const [until, setUntil] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [presets, setPresets] = useState<Array<{ name: string; filters: Record<string, string> }>>([]);
+  const [insightItems, setInsightItems] = useState<AdminActivityItem[]>([]);
+  const [insightLoading, setInsightLoading] = useState(false);
+
+  const formatDate = (date: Date) => date.toISOString().slice(0, 10);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("admin_activity_presets");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setPresets(parsed);
+        }
+      } catch {
+        setPresets([]);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("admin_activity_presets", JSON.stringify(presets));
+  }, [presets]);
 
   const metrics = useMemo(() => {
     const leadEvents = items.filter((a) => a.type.startsWith("lead_")).length;
@@ -27,7 +54,7 @@ export default function AdminActivityPage() {
     return { total: items.length, leadEvents, emailEvents, campaignEvents, jobEvents };
   }, [items]);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -37,6 +64,8 @@ export default function AdminActivityPage() {
         workspace_id: workspaceId ? Number(workspaceId) : undefined,
         actor_user_id: actorUserId ? Number(actorUserId) : undefined,
         type: typeFilter !== "all" ? typeFilter : undefined,
+        since: since || undefined,
+        until: until || undefined,
       });
       setItems(res.items);
       setTotal(res.total);
@@ -46,14 +75,77 @@ export default function AdminActivityPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, pageSize, workspaceId, actorUserId, typeFilter, since, until]);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, typeFilter]);
+  }, [load]);
+
+  useEffect(() => {
+    const loadInsights = async () => {
+      setInsightLoading(true);
+      try {
+        const res = await apiClient.getAdminActivity({
+          page: 1,
+          page_size: 200,
+          workspace_id: workspaceId ? Number(workspaceId) : undefined,
+          actor_user_id: actorUserId ? Number(actorUserId) : undefined,
+          type: typeFilter !== "all" ? typeFilter : undefined,
+          since: since || undefined,
+          until: until || undefined,
+        });
+        setInsightItems(res.items || []);
+      } catch (err) {
+        console.error("Failed to load admin activity insights:", err);
+        setInsightItems([]);
+      } finally {
+        setInsightLoading(false);
+      }
+    };
+
+    loadInsights();
+  }, [workspaceId, actorUserId, typeFilter, since, until]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const adminInsightSummary = useMemo(() => {
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    const recent = insightItems.filter((item) => new Date(item.created_at).getTime() >= now - oneDay);
+    const previous = insightItems.filter((item) => {
+      const time = new Date(item.created_at).getTime();
+      return time < now - oneDay && time >= now - 2 * oneDay;
+    });
+
+    const countByType = (itemsList: AdminActivityItem[]) =>
+      itemsList.reduce<Record<string, number>>((acc, item) => {
+        acc[item.type] = (acc[item.type] || 0) + 1;
+        return acc;
+      }, {});
+
+    const recentCounts = countByType(recent);
+    const previousCounts = countByType(previous);
+
+    const anomalies = Object.keys(recentCounts)
+      .map((type) => {
+        const current = recentCounts[type] || 0;
+        const prev = previousCounts[type] || 0;
+        const delta = current - prev;
+        const ratio = prev > 0 ? current / prev : null;
+        const spike = prev === 0 ? current >= 5 : ratio !== null && ratio >= 1.6 && delta >= 3;
+        return { type, current, prev, delta, spike };
+      })
+      .filter((entry) => entry.spike)
+      .sort((a, b) => b.delta - a.delta)
+      .slice(0, 4);
+
+    return {
+      recentCount: recent.length,
+      previousCount: previous.length,
+      delta: recent.length - previous.length,
+      anomalies,
+    };
+  }, [insightItems]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,18 +153,121 @@ export default function AdminActivityPage() {
     load();
   };
 
+  const handleSavePreset = () => {
+    const name = presetName.trim();
+    if (!name) return;
+    const filters = {
+      workspaceId,
+      actorUserId,
+      typeFilter,
+      since,
+      until,
+    };
+    setPresets((prev) => {
+      const next = prev.filter((preset) => preset.name !== name);
+      return [...next, { name, filters }];
+    });
+    setPresetName("");
+  };
+
+  const handleApplyPreset = (preset: { name: string; filters: Record<string, string> }) => {
+    setWorkspaceId(preset.filters.workspaceId || "");
+    setActorUserId(preset.filters.actorUserId || "");
+    setTypeFilter((preset.filters.typeFilter as ActivityTypeFilter) || "all");
+    setSince(preset.filters.since || "");
+    setUntil(preset.filters.until || "");
+    setPage(1);
+  };
+
+  const handleDeletePreset = (name: string) => {
+    setPresets((prev) => prev.filter((preset) => preset.name !== name));
+  };
+
+  const applyQuickFilter = (days: number) => {
+    const now = new Date();
+    const sinceDate = days === 0 ? now : new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    setSince(formatDate(sinceDate));
+    setUntil(formatDate(now));
+    setPage(1);
+  };
+
+  const applyAnomalyFilter = (type: ActivityType) => {
+    const now = new Date();
+    const sinceDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    setTypeFilter(type);
+    setSince(formatDate(sinceDate));
+    setUntil(formatDate(now));
+    setPage(1);
+  };
+
+  const handleExport = useCallback(async () => {
+    try {
+      setExporting(true);
+      const blob = await apiClient.exportAdminActivityCsv({
+        workspace_id: workspaceId ? Number(workspaceId) : undefined,
+        actor_user_id: actorUserId ? Number(actorUserId) : undefined,
+        type: typeFilter !== "all" ? typeFilter : undefined,
+        since: since || undefined,
+        until: until || undefined,
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "admin_activity.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }, [workspaceId, actorUserId, typeFilter, since, until]);
+
+  const handleQuickExport = useCallback(async (days: number) => {
+    const now = new Date();
+    const sinceDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    const sinceValue = formatDate(sinceDate);
+    const untilValue = formatDate(now);
+    setSince(sinceValue);
+    setUntil(untilValue);
+    try {
+      setExporting(true);
+      const blob = await apiClient.exportAdminActivityCsv({
+        workspace_id: workspaceId ? Number(workspaceId) : undefined,
+        actor_user_id: actorUserId ? Number(actorUserId) : undefined,
+        type: typeFilter !== "all" ? typeFilter : undefined,
+        since: sinceValue,
+        until: untilValue,
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `admin_activity_${days}d.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }, [actorUserId, typeFilter, workspaceId]);
+
   const typeOptions: ActivityTypeFilter[] = [
     "all",
     "lead_created",
     "lead_updated",
+    "lead_score_updated",
     "email_found",
     "email_verified",
     "lead_added_to_list",
     "lead_removed_from_list",
+    "campaign_created",
     "campaign_sent",
+    "campaign_outcome_imported",
     "campaign_event",
     "task_created",
     "task_completed",
+    "task_cancelled",
     "note_added",
     "playbook_run",
     "playbook_completed",
@@ -81,6 +276,11 @@ export default function AdminActivityPage() {
     "job_created",
     "job_completed",
     "job_failed",
+    "integration_connected",
+    "integration_disconnected",
+    "workspace_created",
+    "member_invited",
+    "member_joined",
   ];
 
   function getActivityTypeColor(type: ActivityType): string {
@@ -101,14 +301,14 @@ export default function AdminActivityPage() {
   }
 
   function renderMeta(meta: any) {
-    if (!meta || typeof meta !== "object") return "—";
+    if (!meta || typeof meta !== "object") return "-";
     try {
       const keys = Object.keys(meta);
-      if (keys.length === 0) return "—";
+      if (keys.length === 0) return "-";
       const snippets = keys.slice(0, 2).map((k) => `${k}: ${String(meta[k])}`);
-      return snippets.join(" · ");
+      return snippets.join(" | ");
     } catch {
-      return "—";
+      return "-";
     }
   }
 
@@ -140,6 +340,25 @@ export default function AdminActivityPage() {
               Monitor all activity events across workspaces, users, and system actions.
             </p>
           </div>
+          <button
+            onClick={handleExport}
+            className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+            disabled={exporting}
+          >
+            {exporting ? "Exporting..." : "Export CSV"}
+          </button>
+          <div className="flex items-center gap-2">
+            {[1, 7, 30].map((days) => (
+              <button
+                key={days}
+                onClick={() => handleQuickExport(days)}
+                className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-800 px-2.5 py-2 text-[11px] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                disabled={exporting}
+              >
+                Export {days}d
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -159,8 +378,129 @@ export default function AdminActivityPage() {
           <MetricCard label="Job Events" value={metrics.jobEvents} tone="info" />
         </section>
 
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <MetricCard
+            label="Last 24h"
+            value={insightLoading ? "..." : adminInsightSummary.recentCount}
+            tone="default"
+          />
+          <MetricCard
+            label="Prev 24h"
+            value={insightLoading ? "..." : adminInsightSummary.previousCount}
+            tone="default"
+          />
+          <MetricCard
+            label="24h Delta"
+            value={insightLoading ? "..." : adminInsightSummary.delta}
+            tone={adminInsightSummary.delta >= 0 ? "success" : "danger"}
+          />
+        </section>
+
+        <section className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-4">
+          <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
+            Anomaly alerts (last 24h vs prev)
+          </div>
+          {insightLoading ? (
+            <div className="text-xs text-slate-500 dark:text-slate-400">Loading insights...</div>
+          ) : adminInsightSummary.anomalies.length === 0 ? (
+            <div className="text-xs text-slate-500 dark:text-slate-400">No spikes detected.</div>
+          ) : (
+            <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+              {adminInsightSummary.anomalies.map((entry) => (
+                <div key={entry.type} className="flex items-center justify-between">
+                  <span>{formatActivityType(entry.type as ActivityType)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-rose-500">+{entry.delta}</span>
+                    <button
+                      onClick={() => applyAnomalyFilter(entry.type as ActivityType)}
+                      className="text-[11px] text-cyan-600 dark:text-cyan-400 hover:text-cyan-500"
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* Filters */}
         <section className="rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-4">
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
+            <input
+              type="text"
+              placeholder="Preset name"
+              value={presetName}
+              onChange={(e) => setPresetName(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs w-40 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              type="button"
+              onClick={handleSavePreset}
+              className="inline-flex items-center rounded-xl bg-slate-900 text-white px-3 py-2 text-xs hover:bg-slate-800 transition-colors"
+            >
+              Save preset
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setWorkspaceId("");
+                setActorUserId("");
+                setTypeFilter("all");
+                setSince("");
+                setUntil("");
+                setPage(1);
+              }}
+              className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+            >
+              Clear filters
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => applyQuickFilter(0)}
+                className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => applyQuickFilter(7)}
+                className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+              >
+                Last 7d
+              </button>
+              <button
+                type="button"
+                onClick={() => applyQuickFilter(30)}
+                className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+              >
+                Last 30d
+              </button>
+            </div>
+            {presets.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {presets.map((preset) => (
+                  <div key={preset.name} className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPreset(preset)}
+                      className="text-xs text-slate-700 dark:text-slate-200 hover:text-indigo-600"
+                    >
+                      {preset.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePreset(preset.name)}
+                      className="text-xs text-slate-400 hover:text-rose-500"
+                    >
+                      x
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <form onSubmit={handleSearchSubmit} className="flex flex-wrap gap-3 items-stretch sm:items-center">
             <input
               type="number"
@@ -177,6 +517,20 @@ export default function AdminActivityPage() {
               value={actorUserId}
               onChange={(e) => setActorUserId(e.target.value)}
               className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs w-40 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <input
+              type="text"
+              placeholder="Since (YYYY-MM-DD)"
+              value={since}
+              onChange={(e) => setSince(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs w-44 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <input
+              type="text"
+              placeholder="Until (YYYY-MM-DD)"
+              value={until}
+              onChange={(e) => setUntil(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs w-44 text-slate-900 dark:text-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <select
               value={typeFilter}
@@ -218,7 +572,7 @@ export default function AdminActivityPage() {
                 {loading && (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
-                      Loading activity…
+                      Loading activity...
                     </td>
                   </tr>
                 )}
@@ -226,7 +580,7 @@ export default function AdminActivityPage() {
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
                       <div className="flex flex-col items-center gap-2">
-                        <span className="text-2xl">📊</span>
+                        <span className="text-2xl">Chart</span>
                         <span>No activity found for this filter.</span>
                       </div>
                     </td>
@@ -252,7 +606,7 @@ export default function AdminActivityPage() {
                         {act.workspace_id ? (
                           <span className="text-slate-900 dark:text-slate-50">#{act.workspace_id}</span>
                         ) : (
-                          <span className="text-slate-400 dark:text-slate-500">—</span>
+                          <span className="text-slate-400 dark:text-slate-500">-</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -281,7 +635,7 @@ export default function AdminActivityPage() {
         {totalPages > 1 && (
           <div className="flex justify-between items-center text-xs text-slate-600 dark:text-slate-400">
             <span>
-              Page {page} of {totalPages} • {total} events
+              Page {page} of {totalPages} - {total} events
             </span>
             <div className="space-x-2">
               <button

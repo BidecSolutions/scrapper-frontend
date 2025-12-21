@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -8,7 +8,7 @@ import { FormCard } from "@/components/ui/FormCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 import {
   Search,
@@ -29,6 +29,7 @@ import {
 
 export default function NewJobPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +53,48 @@ export default function NewJobPage() {
       social_numbers: true,
     },
   });
+
+  useEffect(() => {
+    const niche = searchParams?.get("niche");
+    const location = searchParams?.get("location");
+    if (niche || location) {
+      setFormData((prev) => ({
+        ...prev,
+        niche: niche || prev.niche,
+        location: location || prev.location,
+      }));
+    }
+  }, [searchParams]);
+
+  const presets = [
+    {
+      label: "Local services",
+      niche: "dentist clinic",
+      location: "New York",
+      max_results: 50,
+      max_pages_per_site: 5,
+      sources: { google_search: true, google_places: true, web_search: false, crawling: true },
+    },
+    {
+      label: "Restaurants",
+      niche: "restaurant",
+      location: "Dubai",
+      max_results: 80,
+      max_pages_per_site: 4,
+      sources: { google_search: true, google_places: true, web_search: false, crawling: true },
+    },
+    {
+      label: "SaaS leads",
+      niche: "B2B SaaS",
+      location: "",
+      max_results: 120,
+      max_pages_per_site: 6,
+      sources: { google_search: true, google_places: false, web_search: true, crawling: true },
+    },
+  ];
+
+  const estimatedMinutes = Math.max(1, Math.round(formData.max_results / 25));
+  const estimatedCredits = Math.max(1, Math.round(formData.max_results * 0.6));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +122,7 @@ export default function NewJobPage() {
         title: `Job "${formData.niche}${formData.location ? ` - ${formData.location}` : ""}" started`,
         message: "The job is running in the background. You'll be notified when it completes.",
         action: {
-          label: "View progress →",
+          label: "View progress",
           onClick: () => router.push(`/jobs/${job.id}`),
         },
       });
@@ -135,6 +178,42 @@ export default function NewJobPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
         >
+          <FormCard
+            title="Quick presets"
+            description="Start with a recommended configuration"
+            icon={Zap}
+            delay={0.05}
+          >
+            <div className="grid gap-3 md:grid-cols-3">
+              {presets.map((preset) => (
+                <motion.button
+                  type="button"
+                  key={preset.label}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      niche: preset.niche,
+                      location: preset.location,
+                      max_results: preset.max_results,
+                      max_pages_per_site: preset.max_pages_per_site,
+                      sources: { ...prev.sources, ...preset.sources },
+                    }))
+                  }
+                  className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/30 px-4 py-3 text-left hover:border-cyan-400/60 transition-colors"
+                >
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{preset.label}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {preset.niche} {preset.location ? `- ${preset.location}` : ""}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                    {preset.max_results} leads, {preset.max_pages_per_site} pages/site
+                  </p>
+                </motion.button>
+              ))}
+            </div>
+          </FormCard>
+
           {/* Basic Information */}
           <FormCard
             title="Basic Information"
@@ -344,6 +423,34 @@ export default function NewJobPage() {
                   />
                 </motion.div>
               ))}
+            </div>
+          </FormCard>
+
+          <FormCard
+            title="Estimated usage"
+            description="Quick estimate based on your selections"
+            icon={Settings}
+            delay={0.35}
+          >
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/30 p-4">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Estimated time</p>
+                <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">
+                  {estimatedMinutes} min
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/30 p-4">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Estimated credits</p>
+                <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">
+                  {estimatedCredits}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/30 p-4">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Sources selected</p>
+                <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">
+                  {Object.values(formData.sources).filter(Boolean).length}
+                </p>
+              </div>
             </div>
           </FormCard>
 

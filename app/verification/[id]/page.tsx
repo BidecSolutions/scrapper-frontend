@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -88,32 +88,7 @@ export default function VerificationJobDetailPage() {
   const [totalResults, setTotalResults] = useState(0);
   const pageSize = 100;
 
-  useEffect(() => {
-    if (jobId) {
-      loadJob();
-      loadResults();
-    }
-  }, [jobId]);
-
-  // Poll for job updates if job is running
-  useEffect(() => {
-    if (!job || (job.status !== "running" && job.status !== "pending")) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      loadJob();
-      loadResults();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [job, jobId]);
-
-  useEffect(() => {
-    loadResults();
-  }, [statusFilter, currentPage]);
-
-  const loadJob = async () => {
+  const loadJob = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/verification/jobs/${jobId}`);
       if (!response.ok) {
@@ -131,9 +106,9 @@ export default function VerificationJobDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [jobId, showToast]);
 
-  const loadResults = async () => {
+  const loadResults = useCallback(async () => {
     try {
       setLoadingResults(true);
       const params = new URLSearchParams({
@@ -161,7 +136,32 @@ export default function VerificationJobDetailPage() {
     } finally {
       setLoadingResults(false);
     }
-  };
+  }, [currentPage, jobId, pageSize, showToast, statusFilter]);
+
+  useEffect(() => {
+    if (jobId) {
+      loadJob();
+      loadResults();
+    }
+  }, [jobId, loadJob, loadResults]);
+
+  // Poll for job updates if job is running
+  useEffect(() => {
+    if (!job || (job.status !== "running" && job.status !== "pending")) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      loadJob();
+      loadResults();
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [job, loadJob, loadResults]);
+
+  useEffect(() => {
+    loadResults();
+  }, [statusFilter, currentPage, loadResults]);
 
   const getStatusBadge = (status: string | null) => {
     if (!status) {

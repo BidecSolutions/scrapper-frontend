@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api";
 import type { Deal, DealStage } from "@/types/deals";
@@ -23,7 +23,7 @@ export default function DealDetailPage() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "timeline" | "tasks">("overview");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await apiClient.getDeal(dealId);
@@ -33,13 +33,13 @@ export default function DealDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [dealId]);
 
   useEffect(() => {
     if (dealId) {
       load();
     }
-  }, [dealId]);
+  }, [dealId, load]);
 
   if (loading) {
     return <div className="p-6">Loading deal...</div>;

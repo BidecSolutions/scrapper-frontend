@@ -220,7 +220,7 @@ export default function LoginPage() {
           {/* Footer */}
           <div className="mt-6 text-center">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <button
                 onClick={() => router.push("/signup")}
                 className="text-cyan-600 dark:text-cyan-400 hover:underline font-medium"
@@ -234,4 +234,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

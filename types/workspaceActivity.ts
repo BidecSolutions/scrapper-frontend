@@ -5,6 +5,7 @@ export type ActivityType =
   | "email_verified"
   | "lead_added_to_list"
   | "lead_removed_from_list"
+  | "lead_score_updated"
   | "campaign_created"
   | "campaign_sent"
   | "campaign_outcome_imported"
@@ -24,7 +25,12 @@ export type ActivityType =
   | "integration_disconnected"
   | "workspace_created"
   | "member_invited"
-  | "member_joined";
+  | "member_joined"
+  | "deal_created"
+  | "deal_stage_changed"
+  | "deal_won"
+  | "deal_lost"
+  | "deal_updated";
 
 export interface WorkspaceActivityItem {
   id: number;

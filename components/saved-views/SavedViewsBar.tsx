@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bookmark, BookmarkCheck, Pin, PinOff, Trash2, Edit2, Plus, X } from "lucide-react";
+import { Pin, PinOff, Trash2, Edit2, Plus, X, Link as LinkIcon, Star } from "lucide-react";
 import { apiClient, type SavedView } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 
@@ -22,6 +23,7 @@ export function SavedViewsBar({
   onApplyView,
 }: SavedViewsBarProps) {
   const { showToast } = useToast();
+  const searchParams = useSearchParams();
   const [views, setViews] = useState<SavedView[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -29,12 +31,13 @@ export function SavedViewsBar({
   const [isPinned, setIsPinned] = useState(false);
   const [isShared, setIsShared] = useState(false);
   const [editingView, setEditingView] = useState<SavedView | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [appliedDefault, setAppliedDefault] = useState(false);
+  const [appliedShared, setAppliedShared] = useState(false);
 
-  useEffect(() => {
-    loadViews();
-  }, [pageType]);
+  const defaultKey = currentUserId ? `savedViewDefault:${pageType}:${currentUserId}` : null;
 
-  const loadViews = async () => {
+  const loadViews = useCallback(async () => {
     try {
       setLoading(true);
       const data = await apiClient.getSavedViews(pageType);
@@ -44,7 +47,50 @@ export function SavedViewsBar({
     } finally {
       setLoading(false);
     }
-  };
+  }, [pageType]);
+
+  useEffect(() => {
+    apiClient.getMe().then((user) => setCurrentUserId(user.id)).catch(() => setCurrentUserId(null));
+  }, []);
+
+  useEffect(() => {
+    loadViews();
+  }, [loadViews]);
+
+  useEffect(() => {
+    const sharedToken = searchParams?.get("shared_view");
+    if (!sharedToken || appliedShared) return;
+
+    apiClient.getSharedSavedView(sharedToken).then((view) => {
+      onApplyView(view);
+      apiClient.useSavedView(view.id).catch(() => undefined);
+      showToast({
+        type: "success",
+        title: "Shared view applied",
+        message: `Loaded "${view.name}"`,
+      });
+      setAppliedShared(true);
+    }).catch(() => {
+      showToast({
+        type: "error",
+        title: "Shared view not found",
+        message: "The shared view link is invalid or no longer available.",
+      });
+      setAppliedShared(true);
+    });
+  }, [searchParams, appliedShared, onApplyView, showToast]);
+
+  useEffect(() => {
+    if (!defaultKey || appliedDefault || views.length === 0) return;
+    const stored = localStorage.getItem(defaultKey);
+    if (!stored) return;
+    const defaultId = Number(stored);
+    const match = views.find((view) => view.id === defaultId);
+    if (!match) return;
+    onApplyView(match);
+    apiClient.useSavedView(match.id).catch(() => undefined);
+    setAppliedDefault(true);
+  }, [defaultKey, appliedDefault, views, onApplyView]);
 
   const handleSaveView = async () => {
     if (!viewName.trim()) {
@@ -178,6 +224,34 @@ export function SavedViewsBar({
             onTogglePin={() => handleTogglePin(view)}
             onDelete={() => handleDeleteView(view)}
             onEdit={() => handleEditView(view)}
+            onShare={async () => {
+              try {
+                const result = await apiClient.createSavedViewShareLink(view.id);
+                const url = `${window.location.origin}${window.location.pathname}?shared_view=${result.share_token}`;
+                await navigator.clipboard.writeText(url);
+                showToast({
+                  type: "success",
+                  title: "Link copied",
+                  message: "Shared view link copied to clipboard.",
+                });
+              } catch (error: any) {
+                showToast({
+                  type: "error",
+                  title: "Share failed",
+                  message: error?.response?.data?.detail || "Unable to create share link.",
+                });
+              }
+            }}
+            onSetDefault={() => {
+              if (!defaultKey) return;
+              localStorage.setItem(defaultKey, String(view.id));
+              showToast({
+                type: "success",
+                title: "Default view saved",
+                message: `"${view.name}" will load by default.`,
+              });
+            }}
+            isDefault={defaultKey ? Number(localStorage.getItem(defaultKey)) === view.id : false}
           />
         ))}
         {unpinnedViews.map((view) => (
@@ -188,6 +262,34 @@ export function SavedViewsBar({
             onTogglePin={() => handleTogglePin(view)}
             onDelete={() => handleDeleteView(view)}
             onEdit={() => handleEditView(view)}
+            onShare={async () => {
+              try {
+                const result = await apiClient.createSavedViewShareLink(view.id);
+                const url = `${window.location.origin}${window.location.pathname}?shared_view=${result.share_token}`;
+                await navigator.clipboard.writeText(url);
+                showToast({
+                  type: "success",
+                  title: "Link copied",
+                  message: "Shared view link copied to clipboard.",
+                });
+              } catch (error: any) {
+                showToast({
+                  type: "error",
+                  title: "Share failed",
+                  message: error?.response?.data?.detail || "Unable to create share link.",
+                });
+              }
+            }}
+            onSetDefault={() => {
+              if (!defaultKey) return;
+              localStorage.setItem(defaultKey, String(view.id));
+              showToast({
+                type: "success",
+                title: "Default view saved",
+                message: `"${view.name}" will load by default.`,
+              });
+            }}
+            isDefault={defaultKey ? Number(localStorage.getItem(defaultKey)) === view.id : false}
           />
         ))}
         <button
@@ -301,12 +403,18 @@ function ViewChip({
   onTogglePin,
   onDelete,
   onEdit,
+  onShare,
+  onSetDefault,
+  isDefault,
 }: {
   view: SavedView;
   onApply: () => void;
   onTogglePin: () => void;
   onDelete: () => void;
   onEdit: () => void;
+  onShare: () => void;
+  onSetDefault: () => void;
+  isDefault: boolean;
 }) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -320,6 +428,9 @@ function ViewChip({
           {view.is_pinned && <Pin className="w-3.5 h-3.5 text-cyan-500" />}
           {view.is_shared && (
             <span className="text-[10px] text-slate-500 dark:text-slate-400">Team</span>
+          )}
+          {isDefault && (
+            <span className="text-[10px] text-amber-600 dark:text-amber-400">Default</span>
           )}
           <span>{view.name}</span>
           {view.usage_count > 0 && (
@@ -378,6 +489,28 @@ function ViewChip({
             >
               <Edit2 className="w-3.5 h-3.5" />
               Edit
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetDefault();
+                setShowMenu(false);
+              }}
+              className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded flex items-center gap-2"
+            >
+              <Star className="w-3.5 h-3.5" />
+              Set default
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onShare();
+                setShowMenu(false);
+              }}
+              className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded flex items-center gap-2"
+            >
+              <LinkIcon className="w-3.5 h-3.5" />
+              Copy link
             </button>
             <button
               onClick={(e) => {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
@@ -10,7 +11,7 @@ import { MetricCard } from "@/components/ui/metrics";
 import { apiClient } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Copy, Trash2, Plus, X, Upload, Image as ImageIcon, Key, Building2, BarChart3, Loader2 } from "lucide-react";
+import { Copy, Trash2, Plus, X, Upload, Image as ImageIcon, Key, Building2, BarChart3, Loader2, Sparkles } from "lucide-react";
 import { CopyButton } from "@/components/ui/CopyButton";
 
 interface Organization {
@@ -59,34 +60,11 @@ export default function SettingsPage() {
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [seedingDemo, setSeedingDemo] = useState(false);
+  const [keySearch, setKeySearch] = useState("");
+  const [showRevoked, setShowRevoked] = useState(false);
 
-  useEffect(() => {
-    loadOrganization();
-    loadApiKeys();
-    loadUsageStats();
-  }, []);
-
-  useEffect(() => {
-    if (organization?.logo_url) {
-      const logoUrl = organization.logo_url.startsWith("http") 
-        ? organization.logo_url 
-        : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002"}${organization.logo_url}`;
-      setLogoPreview(logoUrl);
-    } else {
-      setLogoPreview(null);
-    }
-  }, [organization?.logo_url]);
-
-  useEffect(() => {
-    if (orgFromContext) {
-      setOrganization(orgFromContext);
-      setOrgName(orgFromContext.name);
-      setBrandName(orgFromContext.brand_name || "");
-      setTagline(orgFromContext.tagline || "");
-    }
-  }, [orgFromContext]);
-
-  const loadOrganization = async () => {
+  const loadOrganization = useCallback(async () => {
     try {
       if (orgFromContext) {
         setOrganization(orgFromContext);
@@ -108,7 +86,67 @@ export default function SettingsPage() {
         message: "Please try again later",
       });
     }
-  };
+  }, [orgFromContext, showToast]);
+
+  const loadApiKeys = useCallback(async () => {
+    setLoadingKeys(true);
+    try {
+      const keys = await apiClient.getApiKeys();
+      setApiKeys(keys);
+    } catch (error) {
+      console.error("Failed to load API keys:", error);
+      showToast({
+        type: "error",
+        title: "Failed to load API keys",
+        message: "Please try again later",
+      });
+    } finally {
+      setLoadingKeys(false);
+    }
+  }, [showToast]);
+
+  const loadUsageStats = useCallback(async () => {
+    setLoadingUsage(true);
+    try {
+      const stats = await apiClient.getUsageStats();
+      setUsageStats(stats);
+    } catch (error) {
+      console.error("Failed to load usage stats:", error);
+      showToast({
+        type: "error",
+        title: "Failed to load usage",
+        message: "Please try again later",
+      });
+    } finally {
+      setLoadingUsage(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    loadOrganization();
+    loadApiKeys();
+    loadUsageStats();
+  }, [loadOrganization, loadApiKeys, loadUsageStats]);
+
+  useEffect(() => {
+    if (organization?.logo_url) {
+      const logoUrl = organization.logo_url.startsWith("http") 
+        ? organization.logo_url 
+        : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002"}${organization.logo_url}`;
+      setLogoPreview(logoUrl);
+    } else {
+      setLogoPreview(null);
+    }
+  }, [organization?.logo_url]);
+
+  useEffect(() => {
+    if (orgFromContext) {
+      setOrganization(orgFromContext);
+      setOrgName(orgFromContext.name);
+      setBrandName(orgFromContext.brand_name || "");
+      setTagline(orgFromContext.tagline || "");
+    }
+  }, [orgFromContext]);
 
   const saveOrganization = async () => {
     if (!orgName.trim()) {
@@ -145,23 +183,6 @@ export default function SettingsPage() {
       });
     } finally {
       setSavingOrg(false);
-    }
-  };
-
-  const loadApiKeys = async () => {
-    setLoadingKeys(true);
-    try {
-      const keys = await apiClient.getApiKeys();
-      setApiKeys(keys);
-    } catch (error) {
-      console.error("Failed to load API keys:", error);
-      showToast({
-        type: "error",
-        title: "Failed to load API keys",
-        message: "Please try again later",
-      });
-    } finally {
-      setLoadingKeys(false);
     }
   };
 
@@ -212,25 +233,39 @@ export default function SettingsPage() {
     }
   };
 
-  const loadUsageStats = async () => {
-    setLoadingUsage(true);
-    try {
-      const stats = await apiClient.getUsageStats();
-      setUsageStats(stats);
-    } catch (error) {
-      console.error("Failed to load usage stats:", error);
-      showToast({
-        type: "error",
-        title: "Failed to load usage",
-        message: "Please try again later",
-      });
-    } finally {
-      setLoadingUsage(false);
-    }
-  };
-
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat().format(num);
+  };
+
+  const filteredKeys = apiKeys.filter((key) => {
+    if (!showRevoked && key.status !== "active") {
+      return false;
+    }
+    if (!keySearch.trim()) return true;
+    const haystack = `${key.name || ""} ${key.key_prefix}`.toLowerCase();
+    return haystack.includes(keySearch.trim().toLowerCase());
+  });
+
+  const handleSeedDemo = async () => {
+    setSeedingDemo(true);
+    try {
+      await apiClient.seedDemoData();
+      await Promise.all([loadOrganization(), loadApiKeys(), loadUsageStats()]);
+      showToast({
+        type: "success",
+        title: "Demo data seeded",
+        message: "Your workspace now has sample jobs, leads, robots, and verification runs.",
+      });
+    } catch (error: any) {
+      console.error("Failed to seed demo data:", error);
+      showToast({
+        type: "error",
+        title: "Failed to seed demo data",
+        message: error?.response?.data?.detail || "Please try again later",
+      });
+    } finally {
+      setSeedingDemo(false);
+    }
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -354,9 +389,11 @@ export default function SettingsPage() {
                   <div className="relative">
                     {logoPreview ? (
                       <div className="relative group">
-                        <img
+                        <Image
                           src={logoPreview}
                           alt="Organization logo"
+                          width={80}
+                          height={80}
                           className="h-20 w-20 rounded-xl object-cover border-2 border-slate-200 dark:border-slate-700 shadow-lg"
                         />
                         <motion.button
@@ -423,9 +460,27 @@ export default function SettingsPage() {
                 label="Tagline"
                 value={tagline}
                 onChange={(e) => setTagline(e.target.value)}
-                placeholder="Scrape • Enrich • Score"
+                placeholder="Scrape - Enrich - Score"
                 helperText="Short description shown below brand name"
               />
+
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30 p-4 space-y-2">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Organization metadata</p>
+                <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
+                  <span>Org ID</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-900 dark:text-slate-50 font-semibold">{organization?.id ?? "-"}</span>
+                    {organization?.id && <CopyButton textToCopy={String(organization.id)} />}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
+                  <span>Slug</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-900 dark:text-slate-50 font-semibold">{organization?.slug || "-"}</span>
+                    {organization?.slug && <CopyButton textToCopy={organization.slug} />}
+                  </div>
+                </div>
+              </div>
 
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Button
@@ -470,6 +525,25 @@ export default function SettingsPage() {
                   </Button>
                 </motion.div>
               </div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1">
+                  <Input
+                    label="Search keys"
+                    value={keySearch}
+                    onChange={(e) => setKeySearch(e.target.value)}
+                    placeholder="Search by name or prefix"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={showRevoked}
+                    onChange={(e) => setShowRevoked(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-cyan-500 focus:ring-cyan-500"
+                  />
+                  Show revoked keys
+                </label>
+              </div>
 
               {/* Create API Key Modal */}
               <AnimatePresence>
@@ -500,7 +574,7 @@ export default function SettingsPage() {
                         <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 border border-emerald-200 dark:border-emerald-800">
                           <p className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold mb-3 flex items-center gap-2">
                             <X className="w-4 h-4" />
-                            Make sure to copy this key now. You won't be able to see it again!
+                            Make sure to copy this key now. You won&apos;t be able to see it again!
                           </p>
                           <div className="flex items-center gap-2">
                             <code className="flex-1 px-4 py-3 rounded-lg bg-slate-900 dark:bg-slate-950 text-emerald-400 text-sm font-mono break-all border border-slate-800">
@@ -561,14 +635,14 @@ export default function SettingsPage() {
                   <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mx-auto mb-2" />
                   <p className="text-sm text-slate-500 dark:text-slate-400">Loading API keys...</p>
                 </div>
-              ) : apiKeys.length === 0 ? (
+              ) : filteredKeys.length === 0 ? (
                 <div className="text-center py-8 text-slate-500 dark:text-slate-400">
                   <Key className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">No API keys yet. Create one to get started.</p>
+                  <p className="text-sm">No API keys match your filters.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {apiKeys.map((key, index) => (
+                  {filteredKeys.map((key, index) => (
                     <motion.div
                       key={key.id}
                       initial={{ opacity: 0, y: 10 }}
@@ -594,7 +668,7 @@ export default function SettingsPage() {
                         <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
                           <code className="font-mono">{key.key_prefix}...</code>
                           {key.last_used_at && (
-                            <span>• Last used: {new Date(key.last_used_at).toLocaleDateString()}</span>
+                            <span>- Last used: {new Date(key.last_used_at).toLocaleDateString()}</span>
                           )}
                         </div>
                       </div>
@@ -675,6 +749,39 @@ export default function SettingsPage() {
               </div>
             </FormCard>
           )}
+
+          {/* Demo Data */}
+          <FormCard
+            title="Demo Data"
+            description="Seed a full set of sample jobs, leads, verification results, robots, and lookalikes."
+            icon={Sparkles}
+            delay={0.4}
+          >
+            <div className="space-y-3">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                This is safe to run multiple times. Demo records are tagged and replaced on each run.
+              </p>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button
+                  onClick={handleSeedDemo}
+                  disabled={seedingDemo}
+                  className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
+                >
+                  {seedingDemo ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Seeding demo data...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Seed Demo Data
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            </div>
+          </FormCard>
         </div>
       </main>
     </div>

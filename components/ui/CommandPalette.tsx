@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Briefcase, Users, Settings, Plus, ArrowRight } from "lucide-react";
+import { Search, Briefcase, Users, Settings, Plus, ArrowRight, Layers, List } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { apiClient, type Job } from "@/lib/api";
+import type { Segment } from "@/types/segments";
+import type { List as LeadList } from "@/types/lists";
 
 interface Command {
   id: string;
@@ -23,11 +25,15 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [lists, setLists] = useState<LeadList[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
     if (open) {
       loadJobs();
+      loadSegments();
+      loadLists();
     }
   }, [open]);
 
@@ -37,6 +43,24 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       setJobs(data.slice(0, 10)); // Limit to recent 10
     } catch (error) {
       console.error("Failed to load jobs:", error);
+    }
+  };
+
+  const loadSegments = async () => {
+    try {
+      const data = await apiClient.getSegments();
+      setSegments(data.slice(0, 10));
+    } catch (error) {
+      console.error("Failed to load segments:", error);
+    }
+  };
+
+  const loadLists = async () => {
+    try {
+      const data = await apiClient.getLists();
+      setLists(data.slice(0, 10));
+    } catch (error) {
+      console.error("Failed to load lists:", error);
     }
   };
 
@@ -72,6 +96,40 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       category: "Navigation",
     },
     {
+      id: "segments",
+      label: "Go to Segments",
+      icon: Layers,
+      action: () => {
+        router.push("/segments");
+        onClose();
+      },
+      category: "Navigation",
+    },
+    {
+      id: "lists",
+      label: "Go to Lists",
+      icon: List,
+      action: () => {
+        router.push("/lists");
+        onClose();
+      },
+      category: "Navigation",
+    },
+    ...(query.trim().length > 1
+      ? [
+          {
+            id: "search-leads",
+            label: `Search leads for "${query.trim()}"`,
+            icon: Search,
+            action: () => {
+              router.push(`/leads?search=${encodeURIComponent(query.trim())}`);
+              onClose();
+            },
+            category: "Search",
+          },
+        ]
+      : []),
+    {
       id: "settings",
       label: "Go to Settings",
       icon: Settings,
@@ -90,6 +148,26 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         onClose();
       },
       category: "Recent Jobs",
+    })),
+    ...segments.map((segment) => ({
+      id: `segment-${segment.id}`,
+      label: `Segment: ${segment.name}`,
+      icon: Layers,
+      action: () => {
+        router.push(`/segments/${segment.id}`);
+        onClose();
+      },
+      category: "Segments",
+    })),
+    ...lists.map((list) => ({
+      id: `list-${list.id}`,
+      label: `List: ${list.name}`,
+      icon: List,
+      action: () => {
+        router.push(`/lists/${list.id}`);
+        onClose();
+      },
+      category: "Lists",
     })),
   ];
 

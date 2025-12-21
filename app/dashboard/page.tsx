@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { DeliverabilityCard } from "@/components/dashboard/DeliverabilityCard";
 import { LinkedInActivityCard } from "@/components/dashboard/LinkedInActivityCard";
@@ -8,11 +8,12 @@ import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist"
 import { PipelineCard } from "@/components/dashboard/PipelineCard";
 import { TrendChart } from "@/components/dashboard/TrendChart";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
+import { ActivityInsightsMini } from "@/components/dashboard/ActivityInsightsMini";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { PerformanceInsights } from "@/components/dashboard/PerformanceInsights";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Plus, Sparkles, TrendingUp, Users, Target, Zap, Activity, BarChart3, Clock, Loader2 } from "lucide-react";
+import { Plus, Sparkles, TrendingUp, Users, Target, Zap, Activity, BarChart3, Clock, Loader2, Mail, AlertCircle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/time";
@@ -74,27 +75,19 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [healthStats, setHealthStats] = useState<any>(null);
+  const [deliverability, setDeliverability] = useState<any>(null);
+  const [seedingDemo, setSeedingDemo] = useState(false);
 
-  useEffect(() => {
-    // Load both API calls in parallel for faster loading
-    Promise.all([
-      loadStats(),
-      loadHealthStats(),
-    ]).catch((error) => {
-      console.error("Failed to load dashboard data:", error);
-    });
-  }, []);
-
-  const loadHealthStats = async () => {
+  const loadHealthStats = useCallback(async () => {
     try {
       const data = await apiClient.getHealthScoreStats();
       setHealthStats(data);
     } catch (error) {
       console.error("Failed to load health stats:", error);
     }
-  };
+  }, []);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       setLoading(true);
       const data = await apiClient.getDashboardStats();
@@ -104,7 +97,35 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const loadDeliverability = useCallback(async () => {
+    try {
+      const data = await apiClient.getDeliverabilityStats();
+      setDeliverability(data);
+    } catch (error) {
+      console.error("Failed to load deliverability stats:", error);
+    }
+  }, []);
+
+  const handleSeedDemo = useCallback(async () => {
+    setSeedingDemo(true);
+    try {
+      await apiClient.seedDemoData();
+      await Promise.all([loadStats(), loadHealthStats(), loadDeliverability()]);
+    } catch (error) {
+      console.error("Failed to seed demo data:", error);
+    } finally {
+      setSeedingDemo(false);
+    }
+  }, [loadStats, loadHealthStats, loadDeliverability]);
+
+  useEffect(() => {
+    // Load all API calls in parallel for faster loading
+    Promise.all([loadStats(), loadHealthStats(), loadDeliverability()]).catch((error) => {
+      console.error("Failed to load dashboard data:", error);
+    });
+  }, [loadStats, loadHealthStats, loadDeliverability]);
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat().format(num);
@@ -224,6 +245,44 @@ export default function DashboardPage() {
             ) : null}
           </AnimatePresence>
 
+          {stats && stats.total_leads === 0 && (
+            <motion.section
+              variants={itemVariants}
+              className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 shadow-xl"
+            >
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50 mb-2">
+                  Get started in one click
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl">
+                  Seed demo data to explore jobs, leads, verification, robots, and lookalike results instantly.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={handleSeedDemo}
+                  disabled={seedingDemo}
+                  className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg"
+                >
+                  {seedingDemo ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Seeding demo data...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Seed Demo Data
+                    </>
+                  )}
+                </Button>
+                <Link href="/jobs/new">
+                  <Button variant="outline">Create a Job</Button>
+                </Link>
+              </div>
+            </motion.section>
+          )}
+
           {/* Health Score Summary - Modern Card */}
           {healthStats && (
             <motion.section
@@ -323,6 +382,32 @@ export default function DashboardPage() {
             </motion.section>
           )}
 
+          {deliverability && (
+            <motion.section
+              variants={itemVariants}
+              className="grid grid-cols-1 md:grid-cols-3 gap-6"
+            >
+              <MetricCard
+                label="Verification Rate"
+                value={`${deliverability.verification_rate}%`}
+                tone="info"
+                icon={CheckCircle2}
+              />
+              <MetricCard
+                label="Valid Emails"
+                value={formatNumber(deliverability.breakdown?.valid?.count || 0)}
+                tone="success"
+                icon={Mail}
+              />
+              <MetricCard
+                label="Risky Emails"
+                value={formatNumber(deliverability.breakdown?.risky?.count || 0)}
+                tone="warning"
+                icon={AlertCircle}
+              />
+            </motion.section>
+          )}
+
           {/* Advanced Features Row 1: Trends & Quick Actions */}
           <motion.section
             variants={itemVariants}
@@ -403,11 +488,14 @@ export default function DashboardPage() {
                     className="text-sm text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-semibold flex items-center gap-1"
                   >
                     View all
-                    <span>→</span>
+                    <span>-></span>
                   </motion.button>
                 </Link>
               </div>
               <LazyActivityFeed />
+              <div className="mt-4 border-t border-slate-200/50 dark:border-slate-800/60 pt-4">
+                <ActivityInsightsMini />
+              </div>
             </motion.div>
 
             {/* Performance Insights */}
@@ -484,7 +572,7 @@ export default function DashboardPage() {
                     className="text-sm text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-semibold flex items-center gap-1"
                   >
                     View all
-                    <span>→</span>
+                    <span>-></span>
                   </motion.button>
                 </Link>
               </div>
@@ -543,7 +631,7 @@ export default function DashboardPage() {
                             </div>
                             <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
                               <span>{formatRelativeTime(job.created_at)}</span>
-                              <span>•</span>
+                              <span>-</span>
                               <span className="font-medium text-cyan-600 dark:text-cyan-400">{job.result_count} leads</span>
                             </div>
                           </div>

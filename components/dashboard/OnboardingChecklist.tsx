@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
-import { apiClient } from "@/lib/api";
+import { apiClient, type OnboardingStatus } from "@/lib/api";
 import Link from "next/link";
 
 interface ChecklistItem {
@@ -17,62 +17,28 @@ export function OnboardingChecklist() {
   const [items, setItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadChecklist();
-  }, []);
-
-  const loadChecklist = async () => {
+  const loadChecklist = useCallback(async () => {
     try {
       setLoading(true);
-      
-      // Check each step
-      const leads = await apiClient.getLeads();
-      const hasLeads = leads.length > 0;
-      
-      // Check if any email has been verified
-      const hasVerifiedEmail = leads.some(lead => 
-        lead.emails && lead.emails.length > 0
+      const status: OnboardingStatus = await apiClient.getOnboardingStatus();
+      setItems(
+        (status.steps || []).map((step) => ({
+          id: step.id,
+          label: step.label,
+          completed: step.completed,
+          actionUrl: step.action_url,
+        }))
       );
-      
-      // Check if extension has been used (LinkedIn leads exist)
-      const linkedinLeads = leads.filter(lead => lead.source === "linkedin_extension");
-      const hasExtensionUsed = linkedinLeads.length > 0;
-      
-      // Check if first LinkedIn lead captured
-      const hasFirstLinkedInLead = linkedinLeads.length > 0;
-      
-      setItems([
-        {
-          id: "upload_csv",
-          label: "Upload a CSV or add your first lead",
-          completed: hasLeads,
-          actionUrl: "/leads",
-        },
-        {
-          id: "verify_email",
-          label: "Verify at least one email",
-          completed: hasVerifiedEmail,
-          actionUrl: "/verification",
-        },
-        {
-          id: "install_extension",
-          label: "Install the LinkedIn Email Finder extension",
-          completed: hasExtensionUsed, // Assume installed if used
-          actionUrl: "/email-finder",
-        },
-        {
-          id: "capture_lead",
-          label: "Capture your first LinkedIn lead",
-          completed: hasFirstLinkedInLead,
-          actionUrl: "/email-finder",
-        },
-      ]);
     } catch (error) {
       console.error("Failed to load checklist:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadChecklist();
+  }, [loadChecklist]);
 
   const completedCount = items.filter(item => item.completed).length;
   const allCompleted = completedCount === items.length && items.length > 0;
@@ -95,7 +61,16 @@ export function OnboardingChecklist() {
       transition={{ duration: 0.3 }}
     >
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Getting Started</h3>
+        <div>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">Getting Started</h3>
+          <Link
+            href="/onboarding"
+            className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 inline-flex items-center gap-1 mt-1"
+          >
+            Open onboarding wizard
+            <ExternalLink className="w-3 h-3" />
+          </Link>
+        </div>
         <span className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/30 px-2.5 py-1 rounded-full">
           {completedCount} / {items.length} completed
         </span>

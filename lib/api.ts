@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from "axios";
+import { trackApiError } from "@/lib/monitoring";
 
 // Get API URL from environment variables
 // Priority: NEXT_PUBLIC_API_URL > (NEXT_PUBLIC_API_HOST + NEXT_PUBLIC_API_PORT) > default
@@ -37,6 +38,8 @@ export interface Lead {
   matched_fields?: string[];
   created_at: string;
   updated_at: string;
+  ai_status?: string | null;
+  ai_last_error?: string | null;
   [key: string]: any;
 }
 
@@ -48,6 +51,8 @@ export interface SavedView {
   sort_order?: string;
   is_pinned?: boolean;
   is_shared?: boolean;
+  share_token?: string | null;
+  share_enabled?: boolean;
   created_at: string;
   [key: string]: any;
 }
@@ -62,6 +67,10 @@ export interface Job {
   total_leads: number;
   created_at: string;
   completed_at: string | null;
+  started_at?: string | null;
+  duration_seconds?: number | null;
+  processed_targets?: number | null;
+  total_targets?: number | null;
   ai_status?: "idle" | "running" | "ready" | "error" | "disabled";
   ai_summary?: string | null;
   ai_segments?: Array<{
@@ -72,6 +81,14 @@ export interface Job {
   }> | null;
   ai_error?: string | null;
   [key: string]: any;
+}
+
+export interface JobLog {
+  id: number;
+  created_at: string | null;
+  activity_type: string;
+  description: string;
+  meta: Record<string, any>;
 }
 
 export interface User {
@@ -132,6 +149,28 @@ export interface HealthScore {
   [key: string]: any;
 }
 
+export interface OnboardingStatus {
+  total_leads: number;
+  verified_emails: number;
+  linkedin_leads: number;
+  jobs_count: number;
+  steps: Array<{
+    id: string;
+    label: string;
+    completed: boolean;
+    action_url?: string;
+  }>;
+}
+
+export interface LeadScoreExplain {
+  total: number;
+  deliverability: { points: number; status?: string | null };
+  fit: { points: number; segments: Array<{ segment_id: number; reply_rate: number }>; title?: string | null; company_size_bucket?: string | null };
+  engagement: { points: number; opened_any: boolean; clicked_any: boolean; replied_any: boolean; bounced_any: boolean };
+  source: { points: number; source: string };
+  notes: string[];
+}
+
 export interface LlmHealth {
   configured: boolean;
   provider: string | null;
@@ -155,6 +194,11 @@ class APIClient {
     // Add request interceptor to include auth token
     this.client.interceptors.request.use(
       (config) => {
+        const cfg = config as any;
+        if (!cfg.timeout) {
+          cfg.timeout = 15000;
+        }
+        cfg.metadata = { startTime: Date.now() };
         if (this.token) {
           config.headers.Authorization = `Bearer ${this.token}`;
         }
@@ -166,6 +210,18 @@ class APIClient {
     // Add response interceptor for error handling
     this.client.interceptors.response.use(
       (response) => {
+        const cfg = response.config as any;
+        const start = cfg?.metadata?.startTime;
+        if (start) {
+          const durationMs = Date.now() - start;
+          if (process.env.NEXT_PUBLIC_PERF_LOG === "true" && durationMs > 1500) {
+            console.warn("[API Perf] Slow request", {
+              url: response.config.url,
+              method: response.config.method,
+              durationMs,
+            });
+          }
+        }
         // Log successful responses for debugging
         if (response.config.url?.includes('/api/jobs')) {
           console.log("[API Interceptor] Jobs response:", {
@@ -178,7 +234,7 @@ class APIClient {
         }
         return response;
       },
-      (error) => {
+      async (error) => {
         console.error("[API Interceptor] Request error:", {
           url: error.config?.url,
           method: error.config?.method,
@@ -187,6 +243,29 @@ class APIClient {
           data: error.response?.data,
           message: error.message
         });
+        trackApiError({
+          url: error.config?.url,
+          method: error.config?.method,
+          status: error.response?.status,
+          message: error.message,
+        });
+        const config = error.config as any;
+        if (config) {
+          const method = (config.method || "get").toLowerCase();
+          const status = error.response?.status;
+          const isIdempotent = method === "get";
+          const isRetryableStatus = !status || status >= 500 || status === 429;
+          const isRetryableError = error.code === "ECONNABORTED" || error.message?.includes("timeout");
+          if (isIdempotent && (isRetryableStatus || isRetryableError)) {
+            config.__retryCount = config.__retryCount || 0;
+            if (config.__retryCount < 2) {
+              config.__retryCount += 1;
+              const delayMs = status === 429 ? 800 * config.__retryCount : 300 * config.__retryCount;
+              await new Promise((resolve) => setTimeout(resolve, delayMs));
+              return this.client.request(config);
+            }
+          }
+        }
         if (error.response?.status === 401) {
           // Token expired or invalid
           this.token = null;
@@ -301,6 +380,19 @@ class APIClient {
     return response.data;
   }
 
+  async getLeadScoreExplain(leadId: number): Promise<LeadScoreExplain> {
+    const response = await this.client.get(`/api/leads/${leadId}/score-explain`);
+    return response.data;
+  }
+
+  async getLeadScoreHistory(leadId: number, limit?: number): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (limit) params.append("limit", limit.toString());
+    const queryString = params.toString();
+    const response = await this.client.get(`/api/leads/${leadId}/score-history${queryString ? `?${queryString}` : ""}`);
+    return response.data;
+  }
+
   async verifyEmailForLead(email: string, leadId: number): Promise<any> {
     const response = await this.client.post(`/api/leads/${leadId}/emails/verify`, { email });
     return response.data;
@@ -324,6 +416,15 @@ class APIClient {
     confidence?: number;
   }): Promise<any> {
     const response = await this.client.post("/api/leads/from-email", data);
+    return response.data;
+  }
+
+  async bulkUpdateLeadTags(data: {
+    lead_ids: number[];
+    tag: string;
+    action?: "add" | "remove";
+  }): Promise<{ updated: number; tag: string }> {
+    const response = await this.client.post("/api/leads/tags/bulk", data);
     return response.data;
   }
 
@@ -426,6 +527,16 @@ class APIClient {
     return response.data;
   }
 
+  async retryJob(jobId: number): Promise<Job> {
+    const response = await this.client.post(`/api/jobs/${jobId}/retry`);
+    return response.data;
+  }
+
+  async getJobLogs(jobId: number): Promise<JobLog[]> {
+    const response = await this.client.get(`/api/jobs/${jobId}/logs`);
+    return response.data;
+  }
+
   // Saved views
   async getSavedViews(pageType?: string): Promise<SavedView[]> {
     const params = pageType ? `?page_type=${pageType}` : "";
@@ -465,6 +576,16 @@ class APIClient {
 
   async useSavedView(viewId: number): Promise<any> {
     const response = await this.client.post(`/api/saved-views/${viewId}/use`);
+    return response.data;
+  }
+
+  async createSavedViewShareLink(viewId: number): Promise<{ share_token: string; share_enabled: boolean }> {
+    const response = await this.client.post(`/api/saved-views/${viewId}/share`);
+    return response.data;
+  }
+
+  async getSharedSavedView(token: string): Promise<SavedView> {
+    const response = await this.client.get(`/api/saved-views/shared/${token}`);
     return response.data;
   }
 
@@ -608,6 +729,11 @@ class APIClient {
     return response.data;
   }
 
+  async getVerificationSla(): Promise<any> {
+    const response = await this.client.get("/api/verification/sla");
+    return response.data;
+  }
+
   // Dashboard endpoints
   async getDashboardStats(): Promise<any> {
     const response = await this.client.get("/api/dashboard/stats");
@@ -624,6 +750,11 @@ class APIClient {
     return response.data;
   }
 
+  async getOnboardingStatus(): Promise<OnboardingStatus> {
+    const response = await this.client.get("/api/onboarding/status");
+    return response.data;
+  }
+
   async getLinkedInActivity(): Promise<any> {
     const response = await this.client.get("/api/dashboard/linkedin-activity");
     return response.data;
@@ -636,6 +767,37 @@ class APIClient {
 
   async getPipelineSummary(): Promise<any> {
     const response = await this.client.get("/api/dashboard/pipeline/summary");
+    return response.data;
+  }
+
+  // Admin utilities
+  async seedDemoData(): Promise<any> {
+    const response = await this.client.post("/api/admin/seed-demo");
+    return response.data;
+  }
+
+  // Enrichment queue endpoints
+  async createBulkEnrichment(leadIds: number[], force?: boolean): Promise<any> {
+    const response = await this.client.post("/api/enrichment/jobs", {
+      lead_ids: leadIds,
+      force: force || false,
+    });
+    return response.data;
+  }
+
+  async getEnrichmentQueue(): Promise<{ pending: number; processing: number; success: number; failed: number; total: number }> {
+    const response = await this.client.get("/api/enrichment/queue");
+    return response.data;
+  }
+
+  async listFailedEnrichment(limit?: number): Promise<any[]> {
+    const params = limit ? `?limit=${limit}` : "";
+    const response = await this.client.get(`/api/enrichment/failed${params}`);
+    return response.data;
+  }
+
+  async retryEnrichment(leadIds: number[]): Promise<any> {
+    const response = await this.client.post("/api/enrichment/retry", { lead_ids: leadIds });
     return response.data;
   }
 
@@ -671,15 +833,38 @@ class APIClient {
     page?: number;
     page_size?: number;
     type?: string;
+    actor_user_id?: number;
+    since?: string;
+    until?: string;
   }): Promise<{ items: any[]; total: number }> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.page_size) queryParams.append("page_size", params.page_size.toString());
     if (params?.type) queryParams.append("type", params.type);
+    if (params?.actor_user_id) queryParams.append("actor_user_id", params.actor_user_id.toString());
+    if (params?.since) queryParams.append("since", params.since);
+    if (params?.until) queryParams.append("until", params.until);
     
     const queryString = queryParams.toString();
     const url = `/api/activity/workspace${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
+    return response.data;
+  }
+
+  async exportWorkspaceActivityCsv(params?: {
+    type?: string;
+    actor_user_id?: number;
+    since?: string;
+    until?: string;
+  }): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+    if (params?.type) queryParams.append("type", params.type);
+    if (params?.actor_user_id) queryParams.append("actor_user_id", params.actor_user_id.toString());
+    if (params?.since) queryParams.append("since", params.since);
+    if (params?.until) queryParams.append("until", params.until);
+    const queryString = queryParams.toString();
+    const url = `/api/activity/export/csv${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url, { responseType: "blob" });
     return response.data;
   }
 
@@ -689,6 +874,8 @@ class APIClient {
     workspace_id?: number;
     actor_user_id?: number;
     type?: string;
+    since?: string;
+    until?: string;
   }): Promise<{ items: any[]; total: number }> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", params.page.toString());
@@ -696,10 +883,31 @@ class APIClient {
     if (params?.workspace_id) queryParams.append("workspace_id", params.workspace_id.toString());
     if (params?.actor_user_id) queryParams.append("actor_user_id", params.actor_user_id.toString());
     if (params?.type) queryParams.append("type", params.type);
+    if (params?.since) queryParams.append("since", params.since);
+    if (params?.until) queryParams.append("until", params.until);
     
     const queryString = queryParams.toString();
     const url = `/api/admin/activity${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
+    return response.data;
+  }
+
+  async exportAdminActivityCsv(params?: {
+    workspace_id?: number;
+    actor_user_id?: number;
+    type?: string;
+    since?: string;
+    until?: string;
+  }): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+    if (params?.workspace_id) queryParams.append("workspace_id", params.workspace_id.toString());
+    if (params?.actor_user_id) queryParams.append("actor_user_id", params.actor_user_id.toString());
+    if (params?.type) queryParams.append("type", params.type);
+    if (params?.since) queryParams.append("since", params.since);
+    if (params?.until) queryParams.append("until", params.until);
+    const queryString = queryParams.toString();
+    const url = `/api/admin/activity/export/csv${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url, { responseType: "blob" });
     return response.data;
   }
 
@@ -743,11 +951,17 @@ class APIClient {
     page?: number;
     page_size?: number;
     q?: string;
+    status?: string;
+    kind?: string;
+    tag?: string;
   }): Promise<{ items: any[]; total: number; page: number; page_size: number }> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", params.page.toString());
     if (params?.page_size) queryParams.append("page_size", params.page_size.toString());
     if (params?.q) queryParams.append("q", params.q);
+    if (params?.status) queryParams.append("status", params.status);
+    if (params?.kind) queryParams.append("kind", params.kind);
+    if (params?.tag) queryParams.append("tag", params.tag);
     
     const queryString = queryParams.toString();
     const url = `/api/templates${queryString ? `?${queryString}` : ""}`;
@@ -755,8 +969,18 @@ class APIClient {
     return response.data;
   }
 
+  async getTemplate(templateId: number): Promise<any> {
+    const response = await this.client.get(`/api/templates/${templateId}`);
+    return response.data;
+  }
+
   async createTemplate(data: any): Promise<any> {
     const response = await this.client.post("/api/templates", data);
+    return response.data;
+  }
+
+  async updateTemplate(templateId: number, data: any): Promise<any> {
+    const response = await this.client.patch(`/api/templates/${templateId}`, data);
     return response.data;
   }
 
@@ -767,6 +991,21 @@ class APIClient {
 
   async rejectTemplate(templateId: number, reason?: string): Promise<any> {
     const response = await this.client.post(`/api/templates/${templateId}/reject`, { reason });
+    return response.data;
+  }
+
+  async getTemplateGovernance(): Promise<any> {
+    const response = await this.client.get("/api/templates/governance");
+    return response.data;
+  }
+
+  async updateTemplateGovernance(data: {
+    require_approval_for_new_templates?: boolean;
+    restrict_to_approved_only?: boolean;
+    allow_personal_templates?: boolean;
+    require_unsubscribe?: boolean;
+  }): Promise<any> {
+    const response = await this.client.patch("/api/templates/governance", data);
     return response.data;
   }
 
@@ -862,6 +1101,8 @@ class APIClient {
     max_results?: number;
     headless?: boolean;
     extract_emails?: boolean;
+    aggressive_scroll?: boolean;
+    signal?: AbortSignal;
   }): Promise<{
     success: boolean;
     results: Array<{
@@ -873,12 +1114,14 @@ class APIClient {
       rating?: number | null;
       reviews?: number | null;
       category?: string | null;
+      open_status?: string | null;
     }>;
     total_found: number;
     query: string;
     location?: string | null;
   }> {
-    const response = await this.client.post("/api/google-maps/search", params);
+    const { signal, ...payload } = params;
+    const response = await this.client.post("/api/google-maps/search", payload, { signal });
     return response.data;
   }
 
@@ -1001,6 +1244,125 @@ class APIClient {
 
   async removeLeadFromList(listId: number, leadId: number): Promise<any> {
     const response = await this.client.delete(`/api/lists/${listId}/leads/${leadId}`);
+    return response.data;
+  }
+
+  async getListLeads(
+    listId: number,
+    limit?: number,
+    offset?: number,
+    search?: string
+  ): Promise<{ total: number; leads: any[] }> {
+    const params = new URLSearchParams();
+    if (limit) params.append("limit", limit.toString());
+    if (offset) params.append("offset", offset.toString());
+    if (search) params.append("search", search);
+    const queryString = params.toString();
+    const url = `/api/lists/${listId}/leads${queryString ? `?${queryString}` : ""}`;
+    const response = await this.client.get(url);
+    return response.data;
+  }
+
+  async getListAutomationRules(): Promise<any[]> {
+    const response = await this.client.get("/api/lists/automation/rules");
+    return response.data;
+  }
+
+  async createListAutomationRule(data: {
+    name: string;
+    min_score: number;
+    auto_sync: boolean;
+    notify: boolean;
+    conditions?: any[];
+    schedule?: any;
+  }): Promise<any> {
+    const response = await this.client.post("/api/lists/automation/rules", data);
+    return response.data;
+  }
+
+  async deleteListAutomationRule(ruleId: number): Promise<{ message: string }> {
+    const response = await this.client.delete(`/api/lists/automation/rules/${ruleId}`);
+    return response.data;
+  }
+
+  async getPlaybookEngineStatus(): Promise<any> {
+    const response = await this.client.get("/api/engines/playbooks/status");
+    return response.data;
+  }
+
+  async runListAutomationEngine(): Promise<any> {
+    const response = await this.client.post("/api/engines/lists/run");
+    return response.data;
+  }
+
+  async getListAutomationAudit(): Promise<any[]> {
+    const response = await this.client.get("/api/engines/lists/audit");
+    return response.data;
+  }
+
+  async getTemplateSla(slaHours?: number): Promise<any> {
+    const query = slaHours ? `?sla_hours=${slaHours}` : "";
+    const response = await this.client.get(`/api/engines/templates/sla${query}`);
+    return response.data;
+  }
+
+  async getTemplateAlerts(): Promise<any> {
+    const response = await this.client.get("/api/engines/templates/alerts");
+    return response.data;
+  }
+
+  async getEnrichmentEngineStatus(): Promise<any> {
+    const response = await this.client.get("/api/engines/enrichment/status");
+    return response.data;
+  }
+
+  async getEngineOverview(): Promise<any> {
+    const response = await this.client.get("/api/engines/overview");
+    return response.data;
+  }
+
+  async getEngineAudit(): Promise<any[]> {
+    const response = await this.client.get("/api/engines/audit");
+    return response.data;
+  }
+
+  async exportEngineAudit(): Promise<Blob> {
+    const response = await this.client.get("/api/engines/audit/export", { responseType: "blob" });
+    return response.data;
+  }
+
+  async getEngineSettings(): Promise<any> {
+    const response = await this.client.get("/api/engines/settings");
+    return response.data;
+  }
+
+  async updateEngineSettings(data: Record<string, any>): Promise<any> {
+    const response = await this.client.patch("/api/engines/settings", data);
+    return response.data;
+  }
+
+  async getEngineWebhooks(): Promise<any[]> {
+    const response = await this.client.get("/api/engines/alerts/webhooks");
+    return response.data;
+  }
+
+  async createEngineWebhook(data: { url: string; events: string[]; enabled: boolean }): Promise<any> {
+    const response = await this.client.post("/api/engines/alerts/webhooks", data);
+    return response.data;
+  }
+
+  async deleteEngineWebhook(webhookId: string): Promise<any> {
+    const response = await this.client.delete(`/api/engines/alerts/webhooks/${webhookId}`);
+    return response.data;
+  }
+
+  async getWorkerQueue(): Promise<any[]> {
+    const response = await this.client.get("/api/engines/workers/queue");
+    return response.data;
+  }
+
+  async enqueueWorkerTask(data: { name: string; status?: string }): Promise<any> {
+    const response = await this.client.post("/api/engines/workers/queue", data);
     return response.data;
   }
 

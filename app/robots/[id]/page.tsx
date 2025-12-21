@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Bot, Sparkles, Play, Loader2, ArrowLeft, Settings, FileText } from "lucide-react";
 import { apiClient } from "@/lib/api";
@@ -26,21 +26,7 @@ export default function RobotDetailPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
 
-  useEffect(() => {
-    if (robotId && !isNaN(robotId)) {
-      loadRobot();
-      loadRuns();
-    } else {
-      setLoading(false);
-      showToast({
-        type: "error",
-        title: "Invalid Robot ID",
-        message: "The robot ID is invalid or missing.",
-      });
-    }
-  }, [robotId]);
-
-  const loadRobot = async () => {
+  const loadRobot = useCallback(async () => {
     if (!robotId || isNaN(robotId)) {
       return;
     }
@@ -68,9 +54,9 @@ export default function RobotDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [robotId, router, showToast]);
 
-  const loadRuns = async () => {
+  const loadRuns = useCallback(async () => {
     if (!robotId || isNaN(robotId)) {
       return;
     }
@@ -81,7 +67,21 @@ export default function RobotDetailPage() {
     } catch (error) {
       console.error("Failed to load runs:", error);
     }
-  };
+  }, [robotId]);
+
+  useEffect(() => {
+    if (robotId && !isNaN(robotId)) {
+      loadRobot();
+      loadRuns();
+    } else {
+      setLoading(false);
+      showToast({
+        type: "error",
+        title: "Invalid Robot ID",
+        message: "The robot ID is invalid or missing.",
+      });
+    }
+  }, [robotId, loadRobot, loadRuns, showToast]);
 
   const handleTest = async () => {
     if (!testUrl.trim()) {

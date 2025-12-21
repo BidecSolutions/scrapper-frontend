@@ -5,11 +5,12 @@ import { apiClient, type SavedView } from "@/lib/api";
 import type { Deal, DealStage } from "@/types/deals";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Plus, ChevronDown, Briefcase } from "lucide-react";
+import { Plus, Briefcase, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/Select";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SavedViewsBar } from "@/components/saved-views/SavedViewsBar";
+import { Input } from "@/components/ui/Input";
 
 const STAGES: DealStage[] = [
   "new",
@@ -35,6 +36,7 @@ export default function DealsPipelinePage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [ownerFilter, setOwnerFilter] = useState<"all" | "mine">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
 
   async function load(customFilters?: Record<string, any>) {
@@ -60,16 +62,22 @@ export default function DealsPipelinePage() {
   };
 
   useEffect(() => {
-    load();
-  }, []);
+    load(ownerFilter !== "all" ? { owner: ownerFilter } : undefined);
+  }, [ownerFilter]);
+
+  const filteredDeals = deals.filter((deal) => {
+    if (!searchQuery.trim()) return true;
+    const haystack = `${deal.name || ""} ${deal.stage || ""}`.toLowerCase();
+    return haystack.includes(searchQuery.trim().toLowerCase());
+  });
 
   const dealsByStage = STAGES.reduce((acc, stage) => {
-    acc[stage] = deals.filter((d) => d.stage === stage);
+    acc[stage] = filteredDeals.filter((d) => d.stage === stage);
     return acc;
   }, {} as Record<DealStage, Deal[]>);
 
   function formatCurrency(value: number | null | undefined, currency: string = "USD"): string {
-    if (!value) return "—";
+    if (!value) return "-";
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: currency,
@@ -83,6 +91,17 @@ export default function DealsPipelinePage() {
     const now = new Date();
     return Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
   }
+
+  const openDeals = filteredDeals.filter((deal) => deal.stage !== "won" && deal.stage !== "lost");
+  const openPipelineValue = openDeals.reduce((sum, deal) => sum + (deal.value || 0), 0);
+  const wonDeals = filteredDeals.filter((deal) => deal.stage === "won").length;
+  const lostDeals = filteredDeals.filter((deal) => deal.stage === "lost").length;
+  const winRate =
+    wonDeals + lostDeals > 0 ? `${Math.round((wonDeals / (wonDeals + lostDeals)) * 100)}%` : "0%";
+  const avgAge =
+    openDeals.length > 0
+      ? Math.round(openDeals.reduce((sum, deal) => sum + getDaysOpen(deal), 0) / openDeals.length)
+      : 0;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -115,7 +134,7 @@ export default function DealsPipelinePage() {
       />
 
       <main className="flex-1 overflow-hidden px-6 pt-6 pb-10">
-        <div className="mb-4">
+        <div className="mb-4 space-y-4">
           <SavedViewsBar
             pageType="deals"
             currentFilters={{
@@ -123,6 +142,37 @@ export default function DealsPipelinePage() {
             }}
             onApplyView={handleApplyView}
           />
+
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-4 shadow-lg">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Open Pipeline</p>
+              <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">
+                {openPipelineValue > 0 ? formatCurrency(openPipelineValue) : "-"}
+              </p>
+            </div>
+            <div className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-4 shadow-lg">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Win Rate</p>
+              <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">{winRate}</p>
+            </div>
+            <div className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-4 shadow-lg">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Avg Age (days)</p>
+              <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">{avgAge}</p>
+            </div>
+            <div className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-4 shadow-lg">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Open Deals</p>
+              <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">{openDeals.length}</p>
+            </div>
+          </section>
+
+          <section className="rounded-3xl glass border border-slate-200/50 dark:border-slate-800/50 p-4 shadow-lg">
+            <Input
+              label="Search deals"
+              icon={Search}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search by name or stage"
+            />
+          </section>
         </div>
 
         {loading ? (
@@ -162,7 +212,7 @@ export default function DealsPipelinePage() {
                         Total
                       </p>
                       <p className="text-sm font-bold text-slate-900 dark:text-slate-50">
-                        {totalValue > 0 ? formatCurrency(totalValue) : "—"}
+                        {totalValue > 0 ? formatCurrency(totalValue) : "-"}
                       </p>
                     </div>
                   </div>

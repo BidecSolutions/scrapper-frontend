@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { apiClient, type Job } from "@/lib/api";
 
-export function useJobsPolling(intervalMs = 5000) {
+export function useJobsPolling(intervalMs = 30000) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,4 +61,3 @@ export function useJobsPolling(intervalMs = 5000) {
 
   return { jobs, loading, error };
 }
-

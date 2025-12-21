@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api";
 import type { LookalikeJobDetail, LookalikeCandidate } from "@/types/lookalike";
@@ -13,7 +13,7 @@ export default function LookalikeJobDetailPage() {
   const [loading, setLoading] = useState(false);
   const [selectedCandidates, setSelectedCandidates] = useState<Set<number>>(new Set());
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await apiClient.getLookalikeJob(jobId, 100, 0);
@@ -23,7 +23,7 @@ export default function LookalikeJobDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [jobId]);
 
   useEffect(() => {
     if (jobId) {
@@ -36,7 +36,7 @@ export default function LookalikeJobDetailPage() {
       }, 5000);
       return () => clearInterval(interval);
     }
-  }, [jobId]);
+  }, [jobId, job?.status, load]);
 
   function handleSelectCandidate(candidateId: number) {
     setSelectedCandidates((prev) => {

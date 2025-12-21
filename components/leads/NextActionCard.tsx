@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Zap, Mail, MessageSquare, Phone, Clock, Sparkles } from "lucide-react";
 import { apiClient } from "@/lib/api";
@@ -15,11 +15,7 @@ export function NextActionCard({ leadId }: NextActionCardProps) {
   const [action, setAction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadNextAction();
-  }, [leadId]);
-
-  const loadNextAction = async () => {
+  const loadNextAction = useCallback(async () => {
     try {
       setLoading(true);
       const data = await apiClient.getNextAction(leadId);
@@ -29,7 +25,11 @@ export function NextActionCard({ leadId }: NextActionCardProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [leadId]);
+
+  useEffect(() => {
+    loadNextAction();
+  }, [leadId, loadNextAction]);
 
   const getActionIcon = (actionType: string) => {
     if (actionType.includes("email")) return Mail;
