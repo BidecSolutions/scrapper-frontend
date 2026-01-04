@@ -331,9 +331,6 @@ export default function EmailFinderPage() {
   };
 
   const emailCount = bulkEmails.split("\n").filter((e: string) => e.trim()).length;
-  const bulkTotal = bulkResults.length;
-  const bulkValidRate = bulkTotal > 0 ? Math.round(((bulkSummary.valid || 0) / bulkTotal) * 100) : 0;
-  const bulkRiskRate = bulkTotal > 0 ? Math.round(((bulkSummary.risky || 0) / bulkTotal) * 100) : 0;
   const bulkSummary = bulkResults.reduce(
     (acc, result) => {
       acc[result.status] = (acc[result.status] || 0) + 1;
@@ -341,6 +338,9 @@ export default function EmailFinderPage() {
     },
     {} as Record<string, number>
   );
+  const bulkTotal = bulkResults.length;
+  const bulkValidRate = bulkTotal > 0 ? Math.round(((bulkSummary.valid || 0) / bulkTotal) * 100) : 0;
+  const bulkRiskRate = bulkTotal > 0 ? Math.round(((bulkSummary.risky || 0) / bulkTotal) * 100) : 0;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -421,7 +421,7 @@ export default function EmailFinderPage() {
                     href="chrome://extensions"
                     className="inline-flex items-center text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-semibold text-sm underline underline-offset-4"
                   >
-                    Open Chrome Extensions Page ->
+                    Open Chrome Extensions Page <span aria-hidden>→</span>
                   </a>
                 </div>
               </div>

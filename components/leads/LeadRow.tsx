@@ -72,6 +72,7 @@ export const LeadRow = memo(function LeadRow({
   selected = false,
   onSelect,
   onTagUpdate,
+  onScoreUpdate,
 }: LeadRowProps) {
   const { showToast } = useToast();
   const [retryMeta, setRetryMeta] = useState<{ count: number; last: number | null } | null>(null);

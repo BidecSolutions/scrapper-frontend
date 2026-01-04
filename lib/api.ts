@@ -1130,6 +1130,29 @@ class APIClient {
     return response.data;
   }
 
+  async getGoogleMapsRecentImports(limit: number = 50): Promise<Array<{
+    id: number;
+    name?: string | null;
+    website?: string | null;
+    address?: string | null;
+    emails: string[];
+    phones: string[];
+    created_at?: string | null;
+  }>> {
+    const response = await this.client.get(`/api/google-maps/imports/recent?limit=${encodeURIComponent(String(limit))}`);
+    return response.data;
+  }
+
+  async enrichGoogleMapsLeads(leadIds: number[]): Promise<{ queued: number; skipped: number; lead_ids: number[] }> {
+    const response = await this.client.post("/api/google-maps/enrich-leads", {
+      lead_ids: leadIds,
+      emails: true,
+      phones: true,
+      social_links: true,
+    });
+    return response.data;
+  }
+
   // Deals endpoints
   async getDeals(params?: {
     page?: number;

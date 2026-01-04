@@ -264,7 +264,7 @@ export default function PlaybookBuilderPage() {
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/40 p-4">
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Summary</p>
             <p className="text-sm text-slate-700 dark:text-slate-300">
-              This playbook will gather leads, enrich emails, verify deliverability, and filter to score >= {minScore}
+              This playbook will gather leads, enrich emails, verify deliverability, and filter to score {"≥"} {minScore}
               {includeRisky ? " including risky emails" : ""}. Output is saved to a list.
             </p>
             {!isValid && (

@@ -488,7 +488,7 @@ export default function DashboardPage() {
                     className="text-sm text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-semibold flex items-center gap-1"
                   >
                     View all
-                    <span>-></span>
+                    <span aria-hidden>→</span>
                   </motion.button>
                 </Link>
               </div>
@@ -572,7 +572,7 @@ export default function DashboardPage() {
                     className="text-sm text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-semibold flex items-center gap-1"
                   >
                     View all
-                    <span>-></span>
+                    <span aria-hidden>→</span>
                   </motion.button>
                 </Link>
               </div>

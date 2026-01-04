@@ -422,7 +422,7 @@ export default function TemplateEditorPage() {
               </Button>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Use these placeholders to personalize your copy. Example: "Hi {first_name}".
+              Use these placeholders to personalize your copy. Example: &quot;Hi {"{first_name}"}&quot;.
             </p>
             <div className="flex flex-wrap gap-2">
               {mergeTags.map((tag) => (

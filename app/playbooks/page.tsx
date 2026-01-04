@@ -300,7 +300,7 @@ export default function PlaybooksPage() {
           </div>
           {engineStatus && (
             <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-400">
-              {Object.entries(engineStatus.by_status || {}).map(([status, count]) => (
+              {Object.entries((engineStatus.by_status ?? {}) as Record<string, number>).map(([status, count]) => (
                 <span key={status} className="rounded-full border border-slate-700 px-2 py-1">
                   {status}: {count}
                 </span>
@@ -389,7 +389,9 @@ export default function PlaybooksPage() {
                 <li>Finds all LinkedIn leads from the last {config.days} days</li>
                 <li>Runs Email Finder on leads without emails</li>
                 <li>Verifies all emails</li>
-                <li>Filters to Valid{config.include_risky ? " and Risky" : ""} emails with score >= {config.min_score}</li>
+                <li>
+                  Filters to Valid{config.include_risky ? " and Risky" : ""} emails with score {"≥"} {config.min_score}
+                </li>
                 <li>Creates a campaign-ready list</li>
               </ul>
             </div>

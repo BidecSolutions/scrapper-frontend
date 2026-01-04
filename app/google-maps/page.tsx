@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { FormCard } from "@/components/ui/FormCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
-import { apiClient } from "@/lib/api";
+import { apiClient, API_URL } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import {
   Search,
@@ -75,6 +75,22 @@ export default function GoogleMapsPage() {
   const [selectedCluster, setSelectedCluster] = useState("all");
   const [visibleCount, setVisibleCount] = useState(0);
   const streamTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Extension imports
+  const [importsLoading, setImportsLoading] = useState(false);
+  const [recentImports, setRecentImports] = useState<
+    Array<{
+      id: number;
+      name?: string | null;
+      website?: string | null;
+      address?: string | null;
+      emails: string[];
+      phones: string[];
+      created_at?: string | null;
+    }>
+  >([]);
+  const [selectedImportIds, setSelectedImportIds] = useState<Set<number>>(new Set());
+  const [enrichLoading, setEnrichLoading] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("google_maps_recent");
@@ -507,6 +523,46 @@ export default function GoogleMapsPage() {
     });
   };
 
+  const loadRecentImports = async () => {
+    setImportsLoading(true);
+    try {
+      const data = await apiClient.getGoogleMapsRecentImports(50);
+      setRecentImports(data || []);
+      setSelectedImportIds(new Set());
+    } catch (e: any) {
+      showToast({
+        type: "error",
+        title: "Failed to load imports",
+        message: e?.response?.data?.detail || e?.message || "Could not load recent imports",
+      });
+    } finally {
+      setImportsLoading(false);
+    }
+  };
+
+  const enrichSelectedImports = async () => {
+    const ids = Array.from(selectedImportIds);
+    if (ids.length === 0) return;
+
+    setEnrichLoading(true);
+    try {
+      const res = await apiClient.enrichGoogleMapsLeads(ids);
+      showToast({
+        type: "success",
+        title: "Enrichment queued",
+        message: `Queued: ${res.queued ?? 0}, Skipped: ${res.skipped ?? 0}`,
+      });
+    } catch (e: any) {
+      showToast({
+        type: "error",
+        title: "Enrichment failed",
+        message: e?.response?.data?.detail || e?.message || "Could not enqueue enrichment",
+      });
+    } finally {
+      setEnrichLoading(false);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <PageHeader
@@ -545,6 +601,89 @@ export default function GoogleMapsPage() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Extension Imports */}
+          <FormCard
+            title="Extension Imports"
+            description="Import leads from the Chrome extension, then enrich them with emails/phones/social."
+            icon={Navigation}
+          >
+            <div className="flex flex-wrap items-center gap-2 justify-between">
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => window.open(`${API_URL}/api/google-maps/imports/export/csv`, "_blank")}>
+                  Download CSV
+                </Button>
+                <Button variant="outline" onClick={() => window.open(`${API_URL}/api/google-maps/imports/export/xlsx`, "_blank")}>
+                  Download XLSX
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button onClick={loadRecentImports} disabled={importsLoading}>
+                  {importsLoading ? "Loading..." : "Refresh"}
+                </Button>
+                <Button
+                  onClick={enrichSelectedImports}
+                  disabled={enrichLoading || selectedImportIds.size === 0}
+                >
+                  {enrichLoading ? "Enriching..." : `Enrich Selected (${selectedImportIds.size})`}
+                </Button>
+              </div>
+            </div>
+
+            {recentImports.length === 0 ? (
+              <div className="mt-4 text-sm text-slate-600 dark:text-slate-400">
+                No recent imports yet. Use the Chrome extension → “Import to Backend”, then click Refresh.
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-3">
+                {recentImports.map((lead) => {
+                  const selected = selectedImportIds.has(lead.id);
+                  const primaryEmail = lead.emails?.[0] || null;
+                  const primaryPhone = lead.phones?.[0] || null;
+                  return (
+                    <div
+                      key={lead.id}
+                      className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white/60 dark:bg-slate-900/30 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <Checkbox
+                          checked={selected}
+                          onChange={(e) => {
+                            const next = new Set(selectedImportIds);
+                            if ((e.target as HTMLInputElement).checked) next.add(lead.id);
+                            else next.delete(lead.id);
+                            setSelectedImportIds(next);
+                          }}
+                          label={lead.name || `Lead #${lead.id}`}
+                          description={lead.address || "No address"}
+                        />
+
+                        {lead.website && (
+                          <a
+                            href={lead.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            Website
+                          </a>
+                        )}
+                      </div>
+
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <div className="text-xs text-slate-600 dark:text-slate-300">
+                          Email: {primaryEmail || "—"}
+                        </div>
+                        <div className="text-xs text-slate-600 dark:text-slate-300">
+                          Phone: {primaryPhone || "—"}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </FormCard>
 
           {/* Search Form */}
           <FormCard
