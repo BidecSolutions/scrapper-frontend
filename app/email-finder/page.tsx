@@ -302,32 +302,18 @@ export default function EmailFinderPage() {
     }
   };
 
-  const handleDownloadExtension = async () => {
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002"}/api/extension/download`
-      );
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "leadflux-email-finder-extension.zip";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      showToast({
-        type: "success",
-        title: "Extension downloaded",
-        message: "Check the installation instructions below",
-      });
-    } catch (error: any) {
-      showToast({
-        type: "error",
-        title: "Download failed",
-        message: "Failed to download extension. Please try again.",
-      });
-    }
+  const handleDownloadExtension = () => {
+    const a = document.createElement("a");
+    a.href = "/extension.zip";
+    a.download = "leadflux-chrome-extension.zip";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast({
+      type: "success",
+      title: "Extension downloaded",
+      message: "Check the installation instructions below",
+    });
   };
 
   const emailCount = bulkEmails.split("\n").filter((e: string) => e.trim()).length;
@@ -445,11 +431,10 @@ export default function EmailFinderPage() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative py-3 px-4 text-sm font-semibold transition-all flex items-center gap-2 ${
-                  activeTab === tab.key
-                    ? "text-cyan-600 dark:text-cyan-400"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                }`}
+                className={`relative py-3 px-4 text-sm font-semibold transition-all flex items-center gap-2 ${activeTab === tab.key
+                  ? "text-cyan-600 dark:text-cyan-400"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                  }`}
               >
                 <tab.icon className="w-4 h-4" />
                 {tab.label}

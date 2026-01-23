@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 type StatusFilter = UserStatus | "all";
 
 export default function AdminUsersPage() {
-  const { user, isSuperAdmin, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
@@ -34,15 +34,6 @@ export default function AdminUsersPage() {
   async function load() {
     setLoading(true);
     setError(null);
-    
-    const token = localStorage.getItem("auth_token");
-    if (!token) {
-      setError("No authentication token found. Please log in again.");
-      setLoading(false);
-      return;
-    }
-    
-    apiClient.setToken(token);
     
     try {
       const res = await apiClient.getAdminUsers({
@@ -92,13 +83,11 @@ export default function AdminUsersPage() {
   }
 
   useEffect(() => {
-    if (!authLoading && user && isSuperAdmin) {
+    if (!authLoading) {
       load();
-    } else if (!authLoading && (!user || !isSuperAdmin)) {
-      setError("You must be logged in as a super admin to access this page.");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, statusFilter, authLoading, user, isSuperAdmin]);
+  }, [page, statusFilter, authLoading]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 

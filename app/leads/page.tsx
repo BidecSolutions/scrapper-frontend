@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,14 @@ import { EnrichmentProgressCard } from "@/components/leads/EnrichmentProgressCar
 import { useSearchParams } from "next/navigation";
 
 export default function LeadsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading...</div>}>
+      <LeadsPageInner />
+    </Suspense>
+  );
+}
+
+function LeadsPageInner() {
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);

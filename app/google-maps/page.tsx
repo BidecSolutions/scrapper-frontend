@@ -610,6 +610,9 @@ export default function GoogleMapsPage() {
           >
             <div className="flex flex-wrap items-center gap-2 justify-between">
               <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => window.open(`${API_URL}/api/extension/download`, "_blank")}>
+                  Download Chrome Extension
+                </Button>
                 <Button variant="outline" onClick={() => window.open(`${API_URL}/api/google-maps/imports/export/csv`, "_blank")}>
                   Download CSV
                 </Button>
@@ -632,7 +635,7 @@ export default function GoogleMapsPage() {
 
             {recentImports.length === 0 ? (
               <div className="mt-4 text-sm text-slate-600 dark:text-slate-400">
-                No recent imports yet. Use the Chrome extension → “Import to Backend”, then click Refresh.
+                No recent imports yet. Use the Chrome extension {"→"} Import to Backend, then click Refresh.
               </div>
             ) : (
               <div className="mt-4 grid gap-3">

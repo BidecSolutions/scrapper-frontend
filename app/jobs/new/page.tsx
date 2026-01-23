@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -28,6 +28,14 @@ import {
 } from "lucide-react";
 
 export default function NewJobPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading...</div>}>
+      <NewJobPageInner />
+    </Suspense>
+  );
+}
+
+function NewJobPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();

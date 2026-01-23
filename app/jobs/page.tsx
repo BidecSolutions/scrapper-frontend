@@ -157,6 +157,9 @@ export default function JobsPage() {
   const [llmHealthError, setLlmHealthError] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<number | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [selectedJobLoading, setSelectedJobLoading] = useState(false);
+  const [selectedJobError, setSelectedJobError] = useState<string | null>(null);
+  const [jobDetailsById, setJobDetailsById] = useState<Record<number, Job>>({});
   const [logsByJob, setLogsByJob] = useState<Record<number, JobLog[]>>({});
   const [logsLoading, setLogsLoading] = useState<number | null>(null);
   const [logsError, setLogsError] = useState<string | null>(null);
@@ -168,7 +171,32 @@ export default function JobsPage() {
   const { showToast } = useToast();
 
   // Use the polling hook - handles loading, error, and polling automatically
-  const { jobs, loading, error } = useJobsPolling(5000);
+  const { jobs, loading, error } = useJobsPolling({
+    intervalMs: 15000,
+    initialDelayMs: 250,
+    pauseWhenHidden: true,
+    request: { limit: 100, include_ai: false },
+  });
+
+  const handleSelectJob = async (job: Job) => {
+    const cached = jobDetailsById[job.id];
+    setSelectedJobError(null);
+    setSelectedJob(cached || job);
+
+    if (cached) return;
+
+    setSelectedJobLoading(true);
+    try {
+      const full = await apiClient.getJob(job.id);
+      setJobDetailsById((prev) => ({ ...prev, [job.id]: full }));
+      setSelectedJob((current) => (current && current.id === job.id ? full : current));
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || "Failed to load job details.";
+      setSelectedJobError(msg);
+    } finally {
+      setSelectedJobLoading(false);
+    }
+  };
   
   const handleResetFilters = () => {
     setSearchQuery("");
@@ -696,7 +724,7 @@ export default function JobsPage() {
                           className={`border-t border-slate-800 hover:bg-slate-900/70 transition-colors cursor-pointer ${
                             idx % 2 === 1 ? "bg-slate-900/40" : ""
                           }`}
-                          onClick={() => setSelectedJob(job)}
+                          onClick={() => handleSelectJob(job)}
                         >
                           <td className="px-4 py-3">
                             <div className="font-semibold text-slate-100">
@@ -789,6 +817,8 @@ export default function JobsPage() {
                     <div className="mt-2">
                       <StatusBadge status={selectedJob.status} />
                     </div>
+                    {selectedJobLoading && <p className="text-[11px] text-slate-400 mt-2">Loading details…</p>}
+                    {selectedJobError && <p className="text-[11px] text-rose-300 mt-2">{selectedJobError}</p>}
                   </div>
                   <button
                     onClick={() => setSelectedJob(null)}

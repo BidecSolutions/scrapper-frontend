@@ -8,11 +8,11 @@ function getApiUrl(): string {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  
+
   // Otherwise, construct from host and port
   const host = process.env.NEXT_PUBLIC_API_HOST || "localhost";
   const port = process.env.NEXT_PUBLIC_API_PORT || "8002";
-  
+
   return `http://${host}:${port}`;
 }
 
@@ -144,7 +144,7 @@ export interface SocialInsights {
 export interface HealthScore {
   score: number;
   grade: string;
-  breakdown?: Record<string, { status: string; [key: string]: any }>;
+  breakdown?: Record<string, { status: string;[key: string]: any }>;
   recommendations?: any[];
   [key: string]: any;
 }
@@ -177,6 +177,13 @@ export interface LlmHealth {
   status: "ok" | "missing_key" | "error";
   message: string;
 }
+
+export type GetJobsOptions = {
+  status?: string;
+  limit?: number;
+  offset?: number;
+  include_ai?: boolean;
+};
 
 // API Client
 class APIClient {
@@ -222,27 +229,29 @@ class APIClient {
             });
           }
         }
-        // Log successful responses for debugging
-        if (response.config.url?.includes('/api/jobs')) {
-          console.log("[API Interceptor] Jobs response:", {
+        // Optional debug logging (avoid noisy console in dev by default)
+        if (process.env.NEXT_PUBLIC_API_DEBUG === "true" && response.config.url?.includes("/api/jobs")) {
+          console.log("[API Debug] Jobs response:", {
             url: response.config.url,
             status: response.status,
             dataType: typeof response.data,
             isArray: Array.isArray(response.data),
-            dataLength: Array.isArray(response.data) ? response.data.length : 'N/A'
+            dataLength: Array.isArray(response.data) ? response.data.length : "N/A",
           });
         }
         return response;
       },
       async (error) => {
-        console.error("[API Interceptor] Request error:", {
-          url: error.config?.url,
-          method: error.config?.method,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          message: error.message
-        });
+        if (process.env.NEXT_PUBLIC_API_DEBUG === "true") {
+          console.error("[API Debug] Request error:", {
+            url: error.config?.url,
+            method: error.config?.method,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            message: error.message,
+          });
+        }
         trackApiError({
           url: error.config?.url,
           method: error.config?.method,
@@ -450,42 +459,23 @@ class APIClient {
   }
 
   // Job endpoints
-  async getJobs(status?: string): Promise<Job[]> {
-    try {
-      const params = status ? `?status=${status}` : "";
-      console.log("[API] Fetching jobs from:", `${this.client.defaults.baseURL}/api/jobs${params}`);
-      const response = await this.client.get(`/api/jobs${params}`);
-      
-      console.log("[API] Jobs response:", {
-        status: response.status,
-        dataType: typeof response.data,
-        isArray: Array.isArray(response.data),
-        length: Array.isArray(response.data) ? response.data.length : 'N/A'
-      });
-      
-      // Normalize response - handle both array and object shapes
-      const data = response.data;
-      if (Array.isArray(data)) {
-        console.log("[API] Returning array of", data.length, "jobs");
-        return data;
-      }
-      // If backend returns { items: [...], total: ... }, extract items
-      if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-        console.log("[API] Extracting items from object, returning", data.items.length, "jobs");
-        return data.items;
-      }
-      // Fallback: return empty array if shape is unexpected
-      console.warn("[API] Unexpected jobs response shape:", data);
-      return [];
-    } catch (error: any) {
-      console.error("[API] Error in getJobs:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        url: error.config?.url
-      });
-      throw error;
-    }
+  async getJobs(statusOrOptions?: string | GetJobsOptions): Promise<Job[]> {
+    const options: GetJobsOptions =
+      typeof statusOrOptions === "string" ? { status: statusOrOptions } : statusOrOptions || {};
+
+    const params = new URLSearchParams();
+    if (options.status) params.append("status", options.status);
+    if (options.limit !== undefined) params.append("limit", String(options.limit));
+    if (options.offset !== undefined) params.append("offset", String(options.offset));
+    if (options.include_ai) params.append("include_ai", "true");
+
+    const url = `/api/jobs${params.toString() ? `?${params.toString()}` : ""}`;
+    const response = await this.client.get(url);
+
+    const data = response.data;
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === "object" && Array.isArray((data as any).items)) return (data as any).items;
+    return [];
   }
 
   async getJob(jobId: number): Promise<Job> {
@@ -672,7 +662,7 @@ class APIClient {
     if (params?.page_size) queryParams.append("page_size", params.page_size.toString());
     if (params?.q) queryParams.append("q", params.q);
     if (params?.status) queryParams.append("status", params.status);
-    
+
     const queryString = queryParams.toString();
     const url = `/api/admin/users${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
@@ -708,7 +698,7 @@ class APIClient {
     const queryParams = new URLSearchParams();
     if (params?.limit) queryParams.append("limit", params.limit.toString());
     if (params?.status) queryParams.append("status", params.status);
-    
+
     const queryString = queryParams.toString();
     const url = `/api/verification/jobs${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
@@ -806,7 +796,7 @@ class APIClient {
     const queryParams = new URLSearchParams();
     if (unreadOnly) queryParams.append("unread_only", "true");
     if (limit) queryParams.append("limit", limit.toString());
-    
+
     const queryString = queryParams.toString();
     const url = `/api/notifications${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
@@ -844,7 +834,7 @@ class APIClient {
     if (params?.actor_user_id) queryParams.append("actor_user_id", params.actor_user_id.toString());
     if (params?.since) queryParams.append("since", params.since);
     if (params?.until) queryParams.append("until", params.until);
-    
+
     const queryString = queryParams.toString();
     const url = `/api/activity/workspace${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
@@ -885,7 +875,7 @@ class APIClient {
     if (params?.type) queryParams.append("type", params.type);
     if (params?.since) queryParams.append("since", params.since);
     if (params?.until) queryParams.append("until", params.until);
-    
+
     const queryString = queryParams.toString();
     const url = `/api/admin/activity${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
@@ -962,7 +952,7 @@ class APIClient {
     if (params?.status) queryParams.append("status", params.status);
     if (params?.kind) queryParams.append("kind", params.kind);
     if (params?.tag) queryParams.append("tag", params.tag);
-    
+
     const queryString = queryParams.toString();
     const url = `/api/templates${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
@@ -1031,7 +1021,7 @@ class APIClient {
   }
 
   async createRobotFromPrompt(prompt: string, sampleUrl?: string): Promise<any> {
-    const response = await this.client.post("/api/robots/from-prompt", { 
+    const response = await this.client.post("/api/robots/from-prompt", {
       prompt,
       sample_url: sampleUrl,
     });
@@ -1070,7 +1060,7 @@ class APIClient {
     const queryParams = new URLSearchParams();
     if (limit) queryParams.append("limit", limit.toString());
     if (offset) queryParams.append("offset", offset.toString());
-    
+
     const queryString = queryParams.toString();
     const url = `/api/lookalike/jobs/${jobId}${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
@@ -1125,6 +1115,34 @@ class APIClient {
     return response.data;
   }
 
+  async searchLinkedIn(params: {
+    query: string;
+    max_results?: number;
+    headless?: boolean;
+    signal?: AbortSignal;
+  }): Promise<{
+    success: boolean;
+    results: Array<{
+      full_name?: string | null;
+      headline?: string | null;
+      company_name?: string | null;
+      location?: string | null;
+      linkedin_url: string;
+      success: boolean;
+      error?: string | null;
+    }>;
+    total_found: number;
+    query: string;
+  }> {
+    const { signal, ...payload } = params;
+    const response = await this.client.post("/api/linkedin/search", payload, {
+      signal,
+      timeout: 300000
+    });
+    return response.data;
+  }
+
+
   async checkGoogleMapsHealth(): Promise<{ status: string; message: string }> {
     const response = await this.client.get("/api/google-maps/health");
     return response.data;
@@ -1165,7 +1183,7 @@ class APIClient {
     if (params?.page_size) queryParams.append("page_size", params.page_size.toString());
     if (params?.q) queryParams.append("q", params.q);
     if (params?.status) queryParams.append("status", params.status);
-    
+
     const queryString = queryParams.toString();
     const url = `/api/deals${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
@@ -1225,7 +1243,7 @@ class APIClient {
     const params = new URLSearchParams();
     if (limit) params.append("limit", limit.toString());
     if (offset) params.append("offset", offset.toString());
-    
+
     const queryString = params.toString();
     const url = `/api/segments/${segmentId}/leads${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);
@@ -1487,7 +1505,7 @@ class APIClient {
     if (params?.status_filter) queryParams.append("status_filter", params.status_filter);
     if (params?.assigned_to_user_id) queryParams.append("assigned_to_user_id", params.assigned_to_user_id.toString());
     if (params?.due_filter) queryParams.append("due_filter", params.due_filter);
-    
+
     const queryString = queryParams.toString();
     const url = `/api/tasks${queryString ? `?${queryString}` : ""}`;
     const response = await this.client.get(url);

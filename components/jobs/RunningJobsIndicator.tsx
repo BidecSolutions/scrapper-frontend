@@ -1,10 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useJobsPolling } from "@/hooks/useJobsPolling";
 
 export function RunningJobsIndicator() {
-  const { jobs } = useJobsPolling(7000);
+  const pathname = usePathname();
+  const pollingEnabled = !(pathname?.startsWith("/jobs") || pathname?.startsWith("/jobs/"));
+  const { jobs } = useJobsPolling({
+    enabled: pollingEnabled,
+    intervalMs: 30000,
+    initialDelayMs: 1500,
+    pauseWhenHidden: true,
+  });
   const router = useRouter();
 
   const running = jobs.filter(

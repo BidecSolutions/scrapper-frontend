@@ -26,7 +26,7 @@ The app will start on: **http://localhost:3001**
 ## Verify Frontend is Running
 
 1. Open browser: http://localhost:3000
-2. You should see the login page or dashboard
+2. You should see the dashboard
 3. Check browser console for any errors
 
 ## Default Ports

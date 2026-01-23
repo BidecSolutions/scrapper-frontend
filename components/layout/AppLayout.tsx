@@ -28,6 +28,7 @@ import {
   MapPin,
   Search,
   Cpu,
+  Linkedin,
 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { NotificationsBell } from "./NotificationsBell";
@@ -46,11 +47,11 @@ export function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { organization, loading: orgLoading } = useOrganization();
-  const { user, isSuperAdmin, logout } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const [usageStats, setUsageStats] = useState<{ used: number; limit: number } | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
-  
+
   const loadUsageStats = useCallback(async () => {
     try {
       const stats = await apiClient.getUsageStats();
@@ -106,7 +107,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
-  
+
   // Memoize active section calculation
   const activeSection = useMemo((): "dashboard" | "jobs" | "leads" | "settings" => {
     if (pathname?.startsWith("/jobs")) return "jobs";
@@ -229,6 +230,12 @@ export function AppLayout({ children }: AppLayoutProps) {
             active={pathname?.startsWith("/google-maps")}
           />
           <NavItem
+            href="/linkedin"
+            label="LinkedIn"
+            icon={Linkedin}
+            active={pathname?.startsWith("/linkedin")}
+          />
+          <NavItem
             href="/verification"
             label="Verification"
             icon={CheckCircle2}
@@ -285,7 +292,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Fixed Footer */}
         <div className="px-4 py-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
           <Link href="/jobs/new" className="block">
-            <Button 
+            <Button
               type="button"
               className="w-full bg-cyan-500 hover:bg-cyan-400 text-white dark:text-slate-950 font-semibold"
             >
@@ -306,61 +313,54 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
           )}
           <div className="flex items-center justify-between px-4 md:px-8 py-3">
-          <div className="flex items-center gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Organization</p>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                {orgLoading ? "Loading..." : organization?.name || "Acme Growth Agency"}
-              </p>
-            </div>
-            <Link href="/settings">
-              <button
-                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                title="Edit organization"
-                aria-label="Edit organization"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-            </Link>
-          </div>
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-            <button
-              onClick={() => setCommandOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors"
-              title="Command palette (Ctrl+K)"
-            >
-              <Search className="w-3.5 h-3.5" />
-              Search
-            </button>
-            <NotificationsBell />
-            <RunningJobsIndicator />
-            <Link href="/activity">
-              <button
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors"
-                title="Workspace activity"
-              >
-                <Activity className="w-3.5 h-3.5" />
-                Activity
-              </button>
-            </Link>
-            {usageStats && <UsagePill used={usageStats.used} limit={usageStats.limit} />}
-            {user && (
-              <div className="flex items-center gap-2">
-                <div className="text-xs text-slate-600 dark:text-slate-400">
-                  {user.full_name || user.email}
-                </div>
-                <button
-                  onClick={logout}
-                  className="px-2 py-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                  title="Logout"
-                >
-                  Logout
-                </button>
+            <div className="flex items-center gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Organization</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {orgLoading ? "Loading..." : organization?.name || "Acme Growth Agency"}
+                </p>
               </div>
-            )}
-            <div className="h-8 w-8 rounded-full bg-slate-300 dark:bg-slate-700" />
-          </div>
+              <Link href="/settings">
+                <button
+                  className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                  title="Edit organization"
+                  aria-label="Edit organization"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </Link>
+            </div>
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+              <button
+                onClick={() => setCommandOpen(true)}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors"
+                title="Command palette (Ctrl+K)"
+              >
+                <Search className="w-3.5 h-3.5" />
+                Search
+              </button>
+              <NotificationsBell />
+              <RunningJobsIndicator />
+              <Link href="/activity">
+                <button
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors"
+                  title="Workspace activity"
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  Activity
+                </button>
+              </Link>
+              {usageStats && <UsagePill used={usageStats.used} limit={usageStats.limit} />}
+              {user && (
+                <div className="flex items-center gap-2">
+                  <div className="text-xs text-slate-600 dark:text-slate-400">
+                    {user.full_name || user.email}
+                  </div>
+                </div>
+              )}
+              <div className="h-8 w-8 rounded-full bg-slate-300 dark:bg-slate-700" />
+            </div>
           </div>
         </header>
 
@@ -394,7 +394,7 @@ interface NavItemProps {
 
 function NavItem({ href, label, icon: Icon, active }: NavItemProps) {
   const router = useRouter();
-  
+
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     router.push(href);

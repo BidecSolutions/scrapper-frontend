@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/api";
 import type { WorkspaceActivityItem, ActivityType } from "@/types/workspaceActivity";
@@ -38,6 +38,14 @@ const typeLabelMap: Record<string, string> = {
 };
 
 export default function WorkspaceActivityPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading...</div>}>
+      <WorkspaceActivityPageInner />
+    </Suspense>
+  );
+}
+
+function WorkspaceActivityPageInner() {
   const [items, setItems] = useState<WorkspaceActivityItem[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(25);

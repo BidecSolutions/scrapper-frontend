@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Pin, PinOff, Trash2, Edit2, Plus, X, Link as LinkIcon, Star } from "lucide-react";
@@ -16,6 +16,26 @@ interface SavedViewsBarProps {
 }
 
 export function SavedViewsBar({
+  pageType,
+  currentFilters,
+  currentSortBy,
+  currentSortOrder,
+  onApplyView,
+}: SavedViewsBarProps) {
+  return (
+    <Suspense fallback={null}>
+      <SavedViewsBarInner
+        pageType={pageType}
+        currentFilters={currentFilters}
+        currentSortBy={currentSortBy}
+        currentSortOrder={currentSortOrder}
+        onApplyView={onApplyView}
+      />
+    </Suspense>
+  );
+}
+
+function SavedViewsBarInner({
   pageType,
   currentFilters,
   currentSortBy,

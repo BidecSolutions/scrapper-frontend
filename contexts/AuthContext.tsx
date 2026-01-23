@@ -1,8 +1,6 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { apiClient } from "@/lib/api";
-import { useRouter } from "next/navigation";
 
 interface User {
   id: number;
@@ -33,57 +31,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
-  // Load token and user from localStorage on mount
+  // Auth is disabled in this project: always expose a default user.
   useEffect(() => {
-    const storedToken = localStorage.getItem("auth_token");
-    if (storedToken) {
-      setToken(storedToken);
-      loadUser(storedToken);
-    } else {
-      setLoading(false);
-    }
+    setToken(null);
+    setUser({
+      id: 1,
+      email: "default@example.com",
+      full_name: "Default User",
+      status: "active",
+      is_super_admin: true,
+      can_use_advanced: true,
+      organization_id: 1,
+      current_workspace_id: 1,
+      created_at: new Date().toISOString(),
+      last_login_at: null,
+    });
+    setLoading(false);
   }, []);
 
-  const loadUser = async (authToken: string) => {
-    try {
-      // Set token in API client
-      apiClient.setToken(authToken);
-      
-      // Get user info
-      const userInfo = await apiClient.getMe();
-      setUser(userInfo);
-    } catch (error) {
-      console.error("Failed to load user:", error);
-      // Token might be invalid, clear it
-      localStorage.removeItem("auth_token");
-      setToken(null);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const login = async (authToken: string, userInfo: User) => {
-    setToken(authToken);
+    // Kept for compatibility with existing components (no-op for token).
+    setToken(authToken || null);
     setUser(userInfo);
-    localStorage.setItem("auth_token", authToken);
-    apiClient.setToken(authToken);
   };
 
   const logout = () => {
+    // Auth disabled: keep user/session available.
     setToken(null);
-    setUser(null);
-    localStorage.removeItem("auth_token");
-    apiClient.setToken(null);
-    router.push("/login");
   };
 
   const refreshUser = async () => {
-    if (token) {
-      await loadUser(token);
-    }
+    return;
   };
 
   const isSuperAdmin = user?.is_super_admin || false;

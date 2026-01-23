@@ -1,16 +1,14 @@
 "use client";
 
-import { useState, useEffect, lazy, Suspense, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { DeliverabilityCard } from "@/components/dashboard/DeliverabilityCard";
 import { LinkedInActivityCard } from "@/components/dashboard/LinkedInActivityCard";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 import { PipelineCard } from "@/components/dashboard/PipelineCard";
 import { TrendChart } from "@/components/dashboard/TrendChart";
-import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { ActivityInsightsMini } from "@/components/dashboard/ActivityInsightsMini";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { PerformanceInsights } from "@/components/dashboard/PerformanceInsights";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Plus, Sparkles, TrendingUp, Users, Target, Zap, Activity, BarChart3, Clock, Loader2, Mail, AlertCircle, CheckCircle2 } from "lucide-react";
